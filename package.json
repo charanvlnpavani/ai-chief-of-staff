@@ -1,0 +1,28 @@
+{
+  "name": "personal-os",
+  "private": true,
+  "description": "Personal OS: one platform, eight managers, one AI Chief of Staff.",
+  "packageManager": "pnpm@11.28.12",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:api": "cd backend && uv run uvicorn app.main:app --reload --port 8000",
+    "dev:web": "pnpm --filter web dev",
+    "db:setup": "scripts/dev-db.sh setup && pnpm db:migrate",
+    "db:start": "scripts/dev-db.sh start",
+    "db:stop": "scripts/dev-db.sh stop",
+    "db:status": "scripts/dev-db.sh status",
+    "db:migrate": "cd backend && uv run alembic upgrade head",
+    "api:generate": "cd backend && uv run python -m app.scripts.export_openapi ../packages/api-client/openapi.json && cd .. && pnpm --filter @personal-os/api-client generate",
+    "lint": "pnpm -r lint && cd backend && uv run ruff check . && uv run ruff format --check .",
+    "typecheck": "pnpm -r typecheck && cd backend && uv run mypy app",
+    "test": "pnpm -r test && cd backend && uv run pytest",
+    "build": "pnpm --filter web build"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.7",
+    "prettier": "3.10.1"
+  }
+}
