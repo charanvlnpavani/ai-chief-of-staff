@@ -484,6 +484,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Goals */
+        get: operations["goals_list_goals"];
+        put?: never;
+        /** Create Goal */
+        post: operations["goals_create_goal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{goal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Goal */
+        get: operations["goals_get_goal"];
+        put?: never;
+        post?: never;
+        /** Delete Goal */
+        delete: operations["goals_delete_goal"];
+        options?: never;
+        head?: never;
+        /** Update Goal */
+        patch: operations["goals_update_goal"];
+        trace?: never;
+    };
+    "/api/v1/goals/{goal_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Entries
+         * @description Older progress history, newest first. Start from the detail's `entriesNextCursor`.
+         */
+        get: operations["goals_list_entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{goal_id}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Milestone */
+        post: operations["goals_add_milestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{goal_id}/milestones/{milestone_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Milestone */
+        delete: operations["goals_delete_milestone"];
+        options?: never;
+        head?: never;
+        /** Update Milestone */
+        patch: operations["goals_update_milestone"];
+        trace?: never;
+    };
+    "/api/v1/goals/{goal_id}/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check In */
+        post: operations["goals_check_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/professional/skills": {
         parameters: {
             query?: never;
@@ -833,6 +942,21 @@ export interface components {
             /** Reviewsdue */
             reviewsDue: number;
         };
+        /** CheckInIn */
+        CheckInIn: {
+            /**
+             * Value
+             * @description The current total (not an increment). Numeric goals only.
+             */
+            value?: number | string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Localdate
+             * @description Defaults to today.
+             */
+            localDate?: string | null;
+        };
         /** CompletionIn */
         CompletionIn: {
             /**
@@ -976,6 +1100,35 @@ export interface components {
              */
             createdAt: string;
         };
+        /** EntryOut */
+        EntryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "check_in" | "target_change" | "status_change";
+            /**
+             * Localdate
+             * Format: date
+             */
+            localDate: string;
+            /** Value */
+            value: number | null;
+            /** Targetvalue */
+            targetValue: number | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
         /** ExceptionIn */
         ExceptionIn: {
             /**
@@ -1033,6 +1186,222 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+        };
+        /** GoalDetailOut */
+        GoalDetailOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Category */
+            category: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Importance
+             * @enum {string}
+             */
+            importance: "low" | "medium" | "high";
+            /** Successmetric */
+            successMetric: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "completed" | "archived";
+            /**
+             * Startdate
+             * Format: date
+             */
+            startDate: string;
+            /** Targetdate */
+            targetDate: string | null;
+            /**
+             * Progressrule
+             * @enum {string}
+             */
+            progressRule: "milestones" | "numeric";
+            /** Startvalue */
+            startValue: number;
+            /** Targetvalue */
+            targetValue: number | null;
+            /** Unit */
+            unit: string | null;
+            /** Completedat */
+            completedAt: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            progress: components["schemas"]["GoalProgressOut"];
+            /** Milestones */
+            milestones: components["schemas"]["MilestoneOut"][];
+            /**
+             * Entries
+             * @description The 50 newest history entries.
+             */
+            entries: components["schemas"]["EntryOut"][];
+            /**
+             * Entriesnextcursor
+             * @description Pass to GET /goals/{id}/entries for older history.
+             */
+            entriesNextCursor?: string | null;
+        };
+        /** GoalIn */
+        GoalIn: {
+            /** Title */
+            title: string;
+            /** Category */
+            category?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Importance
+             * @default medium
+             * @enum {string}
+             */
+            importance?: "low" | "medium" | "high";
+            /** Successmetric */
+            successMetric?: string | null;
+            /**
+             * Startdate
+             * @description Defaults to today.
+             */
+            startDate?: string | null;
+            /** Targetdate */
+            targetDate?: string | null;
+            /**
+             * Progressrule
+             * @default milestones
+             * @enum {string}
+             */
+            progressRule?: "milestones" | "numeric";
+            /**
+             * Startvalue
+             * @default 0
+             */
+            startValue?: number | string;
+            /** Targetvalue */
+            targetValue?: number | string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Milestones */
+            milestones?: components["schemas"]["MilestoneIn"][];
+        };
+        /** GoalOut */
+        GoalOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Category */
+            category: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Importance
+             * @enum {string}
+             */
+            importance: "low" | "medium" | "high";
+            /** Successmetric */
+            successMetric: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "completed" | "archived";
+            /**
+             * Startdate
+             * Format: date
+             */
+            startDate: string;
+            /** Targetdate */
+            targetDate: string | null;
+            /**
+             * Progressrule
+             * @enum {string}
+             */
+            progressRule: "milestones" | "numeric";
+            /** Startvalue */
+            startValue: number;
+            /** Targetvalue */
+            targetValue: number | null;
+            /** Unit */
+            unit: string | null;
+            /** Completedat */
+            completedAt: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            progress: components["schemas"]["GoalProgressOut"];
+        };
+        /** GoalProgressOut */
+        GoalProgressOut: {
+            /**
+             * Percent
+             * @description 0..1, calculated from recorded activity.
+             */
+            percent: number | null;
+            /**
+             * Expected
+             * @description Share of the planned time already elapsed.
+             */
+            expected: number | null;
+            /**
+             * Health
+             * @enum {string}
+             */
+            health: "on_track" | "at_risk" | "not_started" | "paused" | "completed" | "archived";
+            /** Currentvalue */
+            currentValue: number | null;
+            /** Milestonesdone */
+            milestonesDone: number;
+            /** Milestonestotal */
+            milestonesTotal: number;
+            /** Daysleft */
+            daysLeft: number | null;
+            /** Lastcheckin */
+            lastCheckIn: string | null;
+        };
+        /** GoalUpdate */
+        GoalUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Importance */
+            importance?: ("low" | "medium" | "high") | null;
+            /** Successmetric */
+            successMetric?: string | null;
+            /** Status */
+            status?: ("active" | "paused" | "completed" | "archived") | null;
+            /** Targetdate */
+            targetDate?: string | null;
+            /** Progressrule */
+            progressRule?: ("milestones" | "numeric") | null;
+            /** Startvalue */
+            startValue?: number | string | null;
+            /** Targetvalue */
+            targetValue?: number | string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Version */
+            version?: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1382,6 +1751,47 @@ export interface components {
         MessageIn: {
             /** Content */
             content: string;
+        };
+        /** MilestoneIn */
+        MilestoneIn: {
+            /** Title */
+            title: string;
+            /** Duedate */
+            dueDate?: string | null;
+        };
+        /** MilestoneOut */
+        MilestoneOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Duedate */
+            dueDate: string | null;
+            /** Sortorder */
+            sortOrder: number;
+            /** Completedat */
+            completedAt: string | null;
+        };
+        /** MilestoneUpdate */
+        MilestoneUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Duedate */
+            dueDate?: string | null;
+            /** Done */
+            done?: boolean | null;
+            /** Sortorder */
+            sortOrder?: number | null;
+        };
+        /** Page[EntryOut] */
+        Page_EntryOut_: {
+            /** Items */
+            items: components["schemas"]["EntryOut"][];
+            /** Nextcursor */
+            nextCursor?: string | null;
         };
         /** Page[LearningSessionOut] */
         Page_LearningSessionOut_: {
@@ -3153,6 +3563,339 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_list_goals: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_create_goal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_get_goal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_delete_goal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_update_goal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_list_entries: {
+        parameters: {
+            query?: {
+                /** @description Maximum items to return. */
+                limit?: number;
+                /** @description Cursor from a previous page. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_EntryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_add_milestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_delete_milestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+                milestone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_update_milestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+                milestone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goals_check_in: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalDetailOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -19,6 +19,7 @@ import {
   Sparkles,
   Sprout,
   Sun,
+  Target,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -46,6 +47,7 @@ const NAV = [
   { href: "/chief", label: "Chief of Staff", icon: Sparkles },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/habits", label: "Habits", icon: Repeat },
+  { href: "/goals", label: "Goals", icon: Target },
   { href: "/work", label: "Work & learning", icon: BookOpen },
 ] as const;
 
@@ -216,7 +218,7 @@ export function AppShell({
 
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
         >
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link

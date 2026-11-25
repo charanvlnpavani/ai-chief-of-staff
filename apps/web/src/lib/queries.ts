@@ -10,6 +10,7 @@ export const qk = {
   taskLists: ["task-lists"] as const,
   habits: ["habits"] as const,
   habitExceptions: ["habit-exceptions"] as const,
+  goals: ["goals"] as const,
   professional: ["professional"] as const,
   ai: ["ai"] as const,
   settings: ["settings"] as const,
