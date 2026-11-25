@@ -10,6 +10,7 @@ from app.modules.habits.router import router as habits_router
 from app.modules.identity.router import auth_router, users_router
 from app.modules.productivity.router import lists_router, tasks_router
 from app.modules.professional.router import router as professional_router
+from app.modules.roadmaps.router import router as roadmaps_router
 
 router = APIRouter()
 for module_router in (
@@ -22,6 +23,7 @@ for module_router in (
     habit_exceptions_router,
     goals_router,
     professional_router,
+    roadmaps_router,
     ai_router,
 ):
     router.include_router(module_router)

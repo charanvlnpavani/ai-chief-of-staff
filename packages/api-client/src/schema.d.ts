@@ -770,6 +770,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roadmaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Roadmaps */
+        get: operations["roadmaps_list_roadmaps"];
+        put?: never;
+        /** Create Roadmap */
+        post: operations["roadmaps_create_roadmap"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Templates */
+        get: operations["roadmaps_list_templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft Roadmap
+         * @description Preview a roadmap for a subject. Nothing is saved until POST /roadmaps.
+         */
+        post: operations["roadmaps_draft_roadmap"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roadmap
+         * @description `ahead=true` also shows the next day once today's day is finished.
+         */
+        get: operations["roadmaps_get_roadmap"];
+        put?: never;
+        post?: never;
+        /** Delete Roadmap */
+        delete: operations["roadmaps_delete_roadmap"];
+        options?: never;
+        head?: never;
+        /** Update Roadmap */
+        patch: operations["roadmaps_update_roadmap"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/tasks/{task_id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Complete Task */
+        put: operations["roadmaps_complete_task"];
+        post?: never;
+        /** Uncomplete Task */
+        delete: operations["roadmaps_uncomplete_task"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/status": {
         parameters: {
             query?: never;
@@ -1099,6 +1194,51 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+        };
+        /** DraftDay */
+        DraftDay: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "basic" | "intermediate" | "advanced" | "pro";
+            /** Tasks */
+            tasks: components["schemas"]["DraftTask"][];
+        };
+        /** DraftRequest */
+        DraftRequest: {
+            /** Subject */
+            subject: string;
+            /**
+             * Targetdays
+             * @description Used for AI drafts.
+             * @default 45
+             */
+            targetDays?: number;
+            /**
+             * Minutesperday
+             * @description Used for AI drafts.
+             * @default 60
+             */
+            minutesPerDay?: number;
+            /**
+             * Usetemplate
+             * @description Use a built-in roadmap when one matches the subject.
+             * @default true
+             */
+            useTemplate?: boolean;
+        };
+        /** DraftTask */
+        DraftTask: {
+            /** Title */
+            title: string;
+            /** Detail */
+            detail?: string | null;
+            /**
+             * Minutes
+             * @default 30
+             */
+            minutes?: number;
         };
         /** EntryOut */
         EntryOut: {
@@ -1742,6 +1882,18 @@ export interface components {
             /** Byskill */
             bySkill: components["schemas"]["SkillMinutes"][];
         };
+        /** LevelProgressOut */
+        LevelProgressOut: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "basic" | "intermediate" | "advanced" | "pro";
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+        };
         /** MeOut */
         MeOut: {
             user: components["schemas"]["UserOut"];
@@ -1980,6 +2132,163 @@ export interface components {
             solvedThisWeek: number;
             /** Totalsolved */
             totalSolved: number;
+        };
+        /** RoadmapDetailOut */
+        RoadmapDetailOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Subject */
+            subject: string;
+            /** Title */
+            title: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "template" | "ai";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "completed" | "archived";
+            /**
+             * Startdate
+             * Format: date
+             */
+            startDate: string;
+            /** Completedat */
+            completedAt: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            progress: components["schemas"]["RoadmapProgressOut"];
+            today: components["schemas"]["TodayOut"];
+            /** Tasks */
+            tasks: components["schemas"]["RoadmapTaskOut"][];
+        };
+        /**
+         * RoadmapDraft
+         * @description A plan that is not saved yet. Send it back to POST /roadmaps to keep it.
+         */
+        RoadmapDraft: {
+            /** Subject */
+            subject: string;
+            /** Title */
+            title: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "template" | "ai";
+            /** Templatekey */
+            templateKey?: string | null;
+            /** Days */
+            days: components["schemas"]["DraftDay"][];
+        };
+        /** RoadmapOut */
+        RoadmapOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Subject */
+            subject: string;
+            /** Title */
+            title: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "template" | "ai";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "completed" | "archived";
+            /**
+             * Startdate
+             * Format: date
+             */
+            startDate: string;
+            /** Completedat */
+            completedAt: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            progress: components["schemas"]["RoadmapProgressOut"];
+        };
+        /** RoadmapProgressOut */
+        RoadmapProgressOut: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+            /**
+             * Percent
+             * @description 0..1, from tasks ticked; never estimated by AI.
+             */
+            percent: number;
+            /** Levels */
+            levels: components["schemas"]["LevelProgressOut"][];
+            /** Currentday */
+            currentDay: number | null;
+            /** Currentlevel */
+            currentLevel: ("basic" | "intermediate" | "advanced" | "pro") | null;
+            /** Totaldays */
+            totalDays: number;
+            /** Streakdays */
+            streakDays: number;
+            /**
+             * Projectedfinish
+             * @description Moves out when a day is skipped.
+             */
+            projectedFinish: string | null;
+        };
+        /** RoadmapTaskOut */
+        RoadmapTaskOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Day */
+            day: number;
+            /** Position */
+            position: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "basic" | "intermediate" | "advanced" | "pro";
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string | null;
+            /** Minutes */
+            minutes: number;
+            /** Completedon */
+            completedOn: string | null;
+        };
+        /** RoadmapUpdate */
+        RoadmapUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Status */
+            status?: ("active" | "paused" | "completed" | "archived") | null;
+            /** Version */
+            version?: number | null;
         };
         /** ScheduleChangeIn */
         ScheduleChangeIn: {
@@ -2319,6 +2628,47 @@ export interface components {
             counts: components["schemas"]["TaskCounts"];
             /** Top */
             top: components["schemas"]["TaskOut"][];
+        };
+        /** TemplateOut */
+        TemplateOut: {
+            /** Key */
+            key: string;
+            /** Subject */
+            subject: string;
+            /** Title */
+            title: string;
+            /** Days */
+            days: number;
+        };
+        /** TodayOut */
+        TodayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Days
+             * @description Roadmap day numbers shown today.
+             */
+            days: number[];
+            /** Tasks */
+            tasks: components["schemas"]["RoadmapTaskOut"][];
+            /**
+             * Complete
+             * @description Today's day is finished.
+             */
+            complete: boolean;
+            /**
+             * Finished
+             * @description The whole roadmap is finished.
+             */
+            finished: boolean;
+            /**
+             * Cangoahead
+             * @description The next day can be started early.
+             */
+            canGoAhead: boolean;
         };
         /** ToolCallOut */
         ToolCallOut: {
@@ -4430,6 +4780,288 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_list_roadmaps: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_create_roadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_list_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateOut"][];
+                };
+            };
+        };
+    };
+    roadmaps_draft_roadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_get_roadmap: {
+        parameters: {
+            query?: {
+                ahead?: boolean;
+            };
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_delete_roadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_update_roadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_complete_task: {
+        parameters: {
+            query?: {
+                ahead?: boolean;
+            };
+            header?: never;
+            path: {
+                roadmap_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_uncomplete_task: {
+        parameters: {
+            query?: {
+                ahead?: boolean;
+            };
+            header?: never;
+            path: {
+                roadmap_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDetailOut"];
                 };
             };
             /** @description Validation Error */

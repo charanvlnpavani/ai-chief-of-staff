@@ -63,7 +63,8 @@ function ConsentCard() {
         <p>When you ask a question, Personal OS sends Anthropic:</p>
         <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
           <li>your message, the date and your time zone;</li>
-          <li>only the records Claude looks up through read-only tools: tasks, habits, goals (titles, targets, progress), learning sessions, practice problems and skills.</li>
+          <li>only the records Claude looks up through read-only tools: tasks, habits, goals (titles, targets, progress), learning roadmaps, learning sessions, practice problems and skills.</li>
+          <li>when you plan a roadmap for a new subject: the subject you typed and how much time you want to spend.</li>
         </ul>
         <p>It never sends your email address, passwords or session tokens, and it cannot change, delete or send anything.</p>
         <p className="text-muted-foreground">

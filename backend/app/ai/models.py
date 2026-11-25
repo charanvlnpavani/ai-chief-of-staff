@@ -122,7 +122,8 @@ class AIUsageLedger(IdMixin, OwnedMixin, Base):
 
     __table_args__ = (
         CheckConstraint(
-            "route IN ('chat', 'briefing', 'news', 'gmail', 'report', 'eval')", name="route_valid"
+            "route IN ('chat', 'briefing', 'news', 'gmail', 'report', 'eval', 'roadmap')",
+            name="route_valid",
         ),
         Index("ix_ai_usage_ledger_user_created", "user_id", "created_at"),
     )
