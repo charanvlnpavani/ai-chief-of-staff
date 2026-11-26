@@ -7,13 +7,14 @@ Model names are not hard-coded for those providers: the live model list is fetch
 the user's own key, because providers add and retire models often.
 """
 
-import asyncio
-import ipaddress
-import socket
 from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlsplit
 
+import httpx2
+import openai
+
+from app.core import netguard
 from app.core.errors import BadRequest
 
 ProviderId = Literal["anthropic", "openai", "gemini", "openrouter", "groq", "ollama", "custom"]
@@ -122,18 +123,6 @@ def is_free_model(provider_id: str, model: str) -> bool:
     return provider_id == "ollama" or model.endswith(":free")
 
 
-def _blocked(address: str) -> bool:
-    ip = ipaddress.ip_address(address)
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
-
-
 async def check_base_url(url: str, *, allow_private: bool) -> str:
     """Normalise a provider URL and refuse ones that would make the server call internal
     addresses (unless private endpoints are allowed, e.g. a self-host running Ollama)."""
@@ -150,13 +139,20 @@ async def check_base_url(url: str, *, allow_private: bool) -> str:
     if parts.scheme != "https":
         raise BadRequest("Provider URLs must use https.", code="ai_url_invalid")
     try:
-        infos = await asyncio.get_running_loop().getaddrinfo(
-            parts.hostname, parts.port or 443, type=socket.SOCK_STREAM
-        )
-    except OSError as exc:
+        await netguard.resolve_public(parts.hostname, parts.port or 443)
+    except netguard.UnresolvableHost as exc:
         raise BadRequest("That host name does not resolve.", code="ai_url_invalid") from exc
-    if any(_blocked(str(info[4][0])) for info in infos):
+    except netguard.BlockedAddress as exc:
         raise BadRequest(
             "Private and local network addresses are not allowed here.", code="ai_url_private"
-        )
+        ) from exc
     return url
+
+
+def openai_http_client(*, allow_private: bool) -> httpx2.AsyncClient | None:
+    """The HTTP client for OpenAI-compatible endpoints. Without private endpoints allowed,
+    every request re-checks the resolved address, so a URL that passed `check_base_url`
+    cannot later be pointed at an internal address through DNS. None means the SDK default."""
+    if allow_private:
+        return None
+    return openai.DefaultAsyncHttpxClient(transport=netguard.PublicOnlyTransportHttpx2())
