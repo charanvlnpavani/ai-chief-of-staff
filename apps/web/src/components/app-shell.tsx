@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
   Briefcase,
+  Library,
   CheckSquare,
   Eye,
   EyeOff,
@@ -71,6 +72,10 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
       { href: "/goals", label: "Goals", icon: Target },
       { href: "/roadmaps", label: "Roadmaps", icon: Route },
     ],
+  },
+  {
+    title: "Knowledge",
+    items: [{ href: "/library", label: "Library", icon: Library }],
   },
   {
     title: "Career & growth",
