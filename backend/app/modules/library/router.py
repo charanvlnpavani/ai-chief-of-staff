@@ -1,12 +1,19 @@
 import uuid
+from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 
 from app.api.deps import CurrentAuth, SessionDep
 from app.core.pagination import CursorParam, LimitParam
 from app.core.schemas import Page
-from app.modules.library import service
+from app.modules.library import collections, service, tagging
 from app.modules.library.schemas import (
+    QUERY_MAX,
+    TAG_MAX,
+    CollectionIn,
+    CollectionOut,
+    CollectionUpdate,
     CountsOut,
     ItemIn,
     ItemKind,
@@ -14,6 +21,8 @@ from app.modules.library.schemas import (
     ItemStatus,
     ItemSummaryOut,
     ItemUpdate,
+    TagOut,
+    TagUpdate,
 )
 
 router = APIRouter(prefix="/library", tags=["library"])
@@ -23,19 +32,44 @@ router = APIRouter(prefix="/library", tags=["library"])
 async def list_items(
     auth: CurrentAuth,
     session: SessionDep,
+    q: Annotated[
+        str | None,
+        Query(
+            max_length=QUERY_MAX,
+            description='Search title, excerpt, note, link and tags. Supports "phrases", '
+            "-exclude and OR. Results are ordered by relevance.",
+        ),
+    ] = None,
     status: ItemStatus | None = None,
     kind: ItemKind | None = None,
     favorite: bool | None = None,
+    tag: Annotated[str | None, Query(max_length=TAG_MAX, description="Tag name.")] = None,
+    collection: Annotated[uuid.UUID | None, Query(description="Collection id.")] = None,
+    date_from: Annotated[
+        date | None, Query(alias="from", description="Saved on or after (local day).")
+    ] = None,
+    date_to: Annotated[
+        date | None, Query(alias="to", description="Saved on or before (local day).")
+    ] = None,
     limit: LimitParam = 50,
     cursor: CursorParam = None,
 ) -> Page[ItemSummaryOut]:
-    """Saved items outside the trash, newest first."""
-    return await service.list_items(
-        session,
-        auth.user.id,
+    """Saved items outside the trash: newest first, or best match first with `q`."""
+    filters = service.ItemFilters(
+        q=q,
         status=status,
         kind=kind,
         favorite=favorite,
+        tag=tag,
+        collection_id=collection,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return await service.list_items(
+        session,
+        auth.user.id,
+        filters,
+        timezone=auth.user.timezone,
         cursor=cursor,
         limit=limit,
     )
@@ -95,4 +129,58 @@ async def purge_item(
 ) -> Response:
     """Delete an item that is already in the trash, for good."""
     await service.purge_item(session, auth.user.id, item_id, request=request)
+    return Response(status_code=204)
+
+
+# ------------------------------------------------------------------ tags
+
+
+@router.get("/tags", response_model=list[TagOut])
+async def list_tags(auth: CurrentAuth, session: SessionDep) -> list[TagOut]:
+    return await tagging.list_tags(session, auth.user.id)
+
+
+@router.patch("/tags/{tag_id}", response_model=TagOut)
+async def rename_tag(
+    tag_id: uuid.UUID, payload: TagUpdate, auth: CurrentAuth, session: SessionDep
+) -> TagOut:
+    """Rename a tag. Renaming to another tag's name merges them into that tag."""
+    return await tagging.rename_tag(session, auth.user.id, tag_id, payload)
+
+
+@router.delete("/tags/{tag_id}", status_code=204)
+async def delete_tag(tag_id: uuid.UUID, auth: CurrentAuth, session: SessionDep) -> Response:
+    """Remove the tag from every item; the items stay."""
+    await tagging.delete_tag(session, auth.user.id, tag_id)
+    return Response(status_code=204)
+
+
+# ------------------------------------------------------------------ collections
+
+
+@router.get("/collections", response_model=list[CollectionOut])
+async def list_collections(auth: CurrentAuth, session: SessionDep) -> list[CollectionOut]:
+    return await collections.list_collections(session, auth.user.id)
+
+
+@router.post("/collections", response_model=CollectionOut, status_code=201)
+async def create_collection(
+    payload: CollectionIn, auth: CurrentAuth, session: SessionDep
+) -> CollectionOut:
+    return await collections.create_collection(session, auth.user.id, payload)
+
+
+@router.patch("/collections/{collection_id}", response_model=CollectionOut)
+async def update_collection(
+    collection_id: uuid.UUID, payload: CollectionUpdate, auth: CurrentAuth, session: SessionDep
+) -> CollectionOut:
+    return await collections.update_collection(session, auth.user.id, collection_id, payload)
+
+
+@router.delete("/collections/{collection_id}", status_code=204)
+async def delete_collection(
+    collection_id: uuid.UUID, auth: CurrentAuth, session: SessionDep
+) -> Response:
+    """Delete the collection; its items stay in the library without a collection."""
+    await collections.delete_collection(session, auth.user.id, collection_id)
     return Response(status_code=204)

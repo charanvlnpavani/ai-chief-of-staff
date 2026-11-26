@@ -2208,9 +2208,28 @@
           "library"
         ],
         "summary": "List Items",
-        "description": "Saved items outside the trash, newest first.",
+        "description": "Saved items outside the trash: newest first, or best match first with `q`.",
         "operationId": "library_list_items",
         "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search title, excerpt, note, link and tags. Supports \"phrases\", -exclude and OR. Results are ordered by relevance.",
+              "title": "Q"
+            },
+            "description": "Search title, excerpt, note, link and tags. Supports \"phrases\", -exclude and OR. Results are ordered by relevance."
+          },
           {
             "name": "status",
             "in": "query",
@@ -2270,6 +2289,82 @@
               ],
               "title": "Favorite"
             }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tag name.",
+              "title": "Tag"
+            },
+            "description": "Tag name."
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Collection id.",
+              "title": "Collection"
+            },
+            "description": "Collection id."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Saved on or after (local day).",
+              "title": "From"
+            },
+            "description": "Saved on or after (local day)."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Saved on or before (local day).",
+              "title": "To"
+            },
+            "description": "Saved on or before (local day)."
           },
           {
             "name": "limit",
@@ -2644,6 +2739,272 @@
               "type": "string",
               "format": "uuid",
               "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/tags": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List Tags",
+        "operationId": "library_list_tags",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TagOut"
+                  },
+                  "type": "array",
+                  "title": "Response Library List Tags"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/tags/{tag_id}": {
+      "patch": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Rename Tag",
+        "description": "Rename a tag. Renaming to another tag's name merges them into that tag.",
+        "operationId": "library_rename_tag",
+        "parameters": [
+          {
+            "name": "tag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tag Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Delete Tag",
+        "description": "Remove the tag from every item; the items stay.",
+        "operationId": "library_delete_tag",
+        "parameters": [
+          {
+            "name": "tag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tag Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/collections": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List Collections",
+        "operationId": "library_list_collections",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionOut"
+                  },
+                  "type": "array",
+                  "title": "Response Library List Collections"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Create Collection",
+        "operationId": "library_create_collection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/collections/{collection_id}": {
+      "patch": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Update Collection",
+        "operationId": "library_update_collection",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Delete Collection",
+        "description": "Delete the collection; its items stay in the library without a collection.",
+        "operationId": "library_delete_collection",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
             }
           }
         ],
@@ -4920,6 +5281,101 @@
         },
         "type": "object",
         "title": "CheckInIn"
+      },
+      "CollectionIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Name"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Sortorder",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CollectionIn"
+      },
+      "CollectionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "title": "Sortorder"
+          },
+          "itemCount": {
+            "type": "integer",
+            "title": "Itemcount",
+            "description": "Saved items in it, not counting the trash."
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "sortOrder",
+          "itemCount",
+          "version"
+        ],
+        "title": "CollectionOut"
+      },
+      "CollectionUpdate": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sortOrder": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortorder"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "CollectionUpdate"
       },
       "CompletionIn": {
         "properties": {
@@ -7486,6 +7942,28 @@
             "type": "boolean",
             "title": "Isfavorite",
             "default": false
+          },
+          "tags": {
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Tags",
+            "description": "Tag names; new ones are created."
+          },
+          "collectionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collectionid"
           }
         },
         "type": "object",
@@ -7560,6 +8038,25 @@
           "isFavorite": {
             "type": "boolean",
             "title": "Isfavorite"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "collectionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collectionid"
           },
           "createdAt": {
             "type": "string",
@@ -7654,6 +8151,8 @@
           "siteName",
           "preview",
           "isFavorite",
+          "tags",
+          "collectionId",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -7735,6 +8234,25 @@
             "type": "boolean",
             "title": "Isfavorite"
           },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "collectionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collectionid"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -7772,6 +8290,8 @@
           "siteName",
           "preview",
           "isFavorite",
+          "tags",
+          "collectionId",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -7862,6 +8382,36 @@
               }
             ],
             "title": "Isfavorite"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Replaces the item's tags."
+          },
+          "collectionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collectionid",
+            "description": "null removes it."
           }
         },
         "type": "object",
@@ -10204,6 +10754,46 @@
         },
         "type": "object",
         "title": "SkillUpdate"
+      },
+      "TagOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "itemCount": {
+            "type": "integer",
+            "title": "Itemcount",
+            "description": "Saved items with this tag, not counting the trash."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "itemCount"
+        ],
+        "title": "TagOut"
+      },
+      "TagUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Name",
+            "description": "Renaming to an existing tag's name merges the two."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TagUpdate"
       },
       "TaskCompleteOut": {
         "properties": {
