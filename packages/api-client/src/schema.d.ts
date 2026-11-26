@@ -593,6 +593,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Items
+         * @description Saved items outside the trash, newest first.
+         */
+        get: operations["library_list_items"];
+        put?: never;
+        /**
+         * Create Item
+         * @description Save a note, link, video or excerpt. A link saved before returns 409
+         *     `library_duplicate` with `existingId`.
+         */
+        post: operations["library_create_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts */
+        get: operations["library_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Trash
+         * @description Items moved to the trash, most recently deleted first.
+         */
+        get: operations["library_list_trash"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Item */
+        get: operations["library_get_item"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Item
+         * @description Move to the trash (restorable).
+         */
+        delete: operations["library_delete_item"];
+        options?: never;
+        head?: never;
+        /** Update Item */
+        patch: operations["library_update_item"];
+        trace?: never;
+    };
+    "/api/v1/library/items/{item_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Item */
+        post: operations["library_restore_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/items/{item_id}/permanent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Purge Item
+         * @description Delete an item that is already in the trash, for good.
+         */
+        delete: operations["library_purge_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/professional/skills": {
         parameters: {
             query?: never;
@@ -1379,6 +1500,21 @@ export interface components {
              */
             createdAt: string;
         };
+        /** CountsOut */
+        CountsOut: {
+            /** Inbox */
+            inbox: number;
+            /** Toread */
+            toRead: number;
+            /** Reading */
+            reading: number;
+            /** Archived */
+            archived: number;
+            /** Favorites */
+            favorites: number;
+            /** Trash */
+            trash: number;
+        };
         /** DailyMinutes */
         DailyMinutes: {
             /**
@@ -2066,6 +2202,166 @@ export interface components {
             /** Value */
             value: number;
         };
+        /**
+         * ItemIn
+         * @description Save something. `kind` may be left out: a URL makes a link (or a video for YouTube),
+         *     text alone makes a note. A link's title defaults to its site; a note's to its first line.
+         */
+        ItemIn: {
+            /** Kind */
+            kind?: ("note" | "link" | "video" | "excerpt") | null;
+            /** Title */
+            title?: string | null;
+            /** Url */
+            url?: string | null;
+            /** Excerpt */
+            excerpt?: string | null;
+            /** Body */
+            body?: string | null;
+            /**
+             * Status
+             * @default inbox
+             * @enum {string}
+             */
+            status?: "inbox" | "to_read" | "reading" | "archived";
+            /**
+             * Isfavorite
+             * @default false
+             */
+            isFavorite?: boolean;
+        };
+        /** ItemOut */
+        ItemOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "note" | "link" | "video" | "excerpt";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "inbox" | "to_read" | "reading" | "archived";
+            /** Title */
+            title: string;
+            /** Url */
+            url: string | null;
+            /** Sitename */
+            siteName: string | null;
+            /**
+             * Preview
+             * @description Start of the excerpt, or of the note when there is no excerpt.
+             */
+            preview: string | null;
+            /** Isfavorite */
+            isFavorite: boolean;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Deletedat */
+            deletedAt: string | null;
+            /** Version */
+            version: number;
+            /** Author */
+            author: string | null;
+            /**
+             * Excerpt
+             * @description Text the user saved from the source.
+             */
+            excerpt: string | null;
+            /**
+             * Body
+             * @description The user's own note.
+             */
+            body: string | null;
+            /**
+             * Metadatastatus
+             * @enum {string}
+             */
+            metadataStatus: "none" | "fetched" | "failed";
+            /** Fetchedat */
+            fetchedAt: string | null;
+        };
+        /**
+         * ItemSummaryOut
+         * @description A list row: everything but the full excerpt and note, which can be long.
+         */
+        ItemSummaryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "note" | "link" | "video" | "excerpt";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "inbox" | "to_read" | "reading" | "archived";
+            /** Title */
+            title: string;
+            /** Url */
+            url: string | null;
+            /** Sitename */
+            siteName: string | null;
+            /**
+             * Preview
+             * @description Start of the excerpt, or of the note when there is no excerpt.
+             */
+            preview: string | null;
+            /** Isfavorite */
+            isFavorite: boolean;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Deletedat */
+            deletedAt: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * ItemUpdate
+         * @description Change an item. Send `version` from the item you loaded; a stale one gets 409.
+         */
+        ItemUpdate: {
+            /** Version */
+            version: number;
+            /** Title */
+            title?: string | null;
+            /** Url */
+            url?: string | null;
+            /** Excerpt */
+            excerpt?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Status */
+            status?: ("inbox" | "to_read" | "reading" | "archived") | null;
+            /** Isfavorite */
+            isFavorite?: boolean | null;
+        };
         /** LearnResourceOut */
         LearnResourceOut: {
             /**
@@ -2273,6 +2569,13 @@ export interface components {
         Page_EntryOut_: {
             /** Items */
             items: components["schemas"]["EntryOut"][];
+            /** Nextcursor */
+            nextCursor?: string | null;
+        };
+        /** Page[ItemSummaryOut] */
+        Page_ItemSummaryOut_: {
+            /** Items */
+            items: components["schemas"]["ItemSummaryOut"][];
             /** Nextcursor */
             nextCursor?: string | null;
         };
@@ -4610,6 +4913,285 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GoalDetailOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_list_items: {
+        parameters: {
+            query?: {
+                status?: ("inbox" | "to_read" | "reading" | "archived") | null;
+                kind?: ("note" | "link" | "video" | "excerpt") | null;
+                favorite?: boolean | null;
+                /** @description Maximum items to return. */
+                limit?: number;
+                /** @description Cursor from a previous page. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ItemSummaryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_create_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountsOut"];
+                };
+            };
+        };
+    };
+    library_list_trash: {
+        parameters: {
+            query?: {
+                /** @description Maximum items to return. */
+                limit?: number;
+                /** @description Cursor from a previous page. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ItemSummaryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_get_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_delete_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_update_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_restore_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_purge_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
