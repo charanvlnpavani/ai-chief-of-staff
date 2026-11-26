@@ -41,6 +41,17 @@ prevents overlaps), so past days are always judged by the rules in force then. B
 Quota habits (N per week/month) count streaks in periods. The engine is pure functions in
 `app/modules/habits/streaks.py` with dedicated tests (DST, time-zone changes, schedule changes).
 
+## Life Library and search
+
+`library_items` stores what the user saved: `url` as typed and `url_key` (normalised: scheme,
+`www.`, default port, fragment, tracking parameters, parameter order, IDN spelling, YouTube URL
+forms) with a partial unique index per user, so a link is saved once. Excerpts (quotes from a
+source) and the user's own note live in separate columns and are never merged. A generated
+`search_tsv` weights title (A) over excerpt (B) over note (C) with the `simple` configuration;
+search combines it with substring matches on title, link and tag names. M5 builds the shared
+search service on this column instead of a second index. Link titles are fetched through
+`app/core/netguard.py` (see Security).
+
 ## AI Chief of Staff
 
 ```mermaid

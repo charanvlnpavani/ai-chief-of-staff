@@ -25,6 +25,15 @@ through GitHub, with steps to reproduce.
 - **AI safety:** typed, read-only tools validated server-side; unknown or disallowed tools are
   refused and audited; consent required; monthly budget enforced. See
   `docs/architecture/overview.md`.
+- **Outbound requests:** server-side requests to user-supplied addresses (saved links' titles,
+  custom AI provider URLs) go through `app/core/netguard.py`: every DNS answer must be public
+  (private, loopback, link-local, carrier-grade NAT and IPv4-mapped forms are refused) and the
+  connection is pinned to the checked address, so DNS rebinding cannot reach internal services.
+  Each redirect hop is re-checked. Link fetching also limits ports (80/443), redirects (3), size
+  (512 KB), time (5 s) and ignores environment proxies; only title, site name and author are kept.
+- **Saved content:** library text is the user's data and untrusted: control characters are
+  stripped, it is rendered as text (never HTML), and it reaches the AI only as tool-result data.
+  Audit rows for library deletes record the item kind, never its title or link.
 - **Headers:** nosniff, frame denial, referrer policy, permissions policy, COOP, HSTS in production.
 - **Logs:** structured, with automatic redaction of token/cookie/secret-like fields; request
   bodies and query strings are never logged.
@@ -42,3 +51,5 @@ through GitHub, with steps to reproduce.
 - Content-Security-Policy with nonces (M9).
 - Row-level security in Postgres, formal threat-model review and penetration-style testing (M9).
 - Rate limiting is in-memory (single instance); moves to Redis with the background worker (M6).
+- Environment proxies bypass the outbound-request guard for AI provider calls; revisit if hosting
+  needs an egress proxy (M9).

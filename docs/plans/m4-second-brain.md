@@ -1,6 +1,6 @@
 # M4 plan: Second Brain capture and organization
 
-Status: **Approved** (2026-11-26), D1–D3 resolved as recommended
+Status: **Built** (2026-11-26), D1–D3 resolved as recommended. PRs: #12 (step 1), #13 (step 2), #14 (step 3); steps 4–7 on stacked branches.
 Source: [vision.md](../vision.md) §2.2, §2.8, §6, §9, §10 (M4) · [roadmap.md](../roadmap.md)
 
 ## Goal and done criteria
@@ -64,7 +64,9 @@ Indexes and constraints:
 
 - `UNIQUE(user_id, url_key) WHERE deleted_at IS NULL AND url_key IS NOT NULL` → deduplication.
 - `GIN(search_tsv)`; `(user_id, status, created_at DESC) WHERE deleted_at IS NULL` for the inbox.
-- CHECK: `kind = 'note' OR url IS NOT NULL`; `kind <> 'note' OR url IS NULL`.
+- CHECK: notes never have a URL; links and videos always do; an excerpt always has text and its
+  source URL is optional. Only links and videos get a `url_key` (several excerpts may quote one
+  source).
 - `search_tsv` = `setweight(title,'A') || setweight(excerpt,'B') || setweight(body,'C')`
   with the `simple` config (multilingual-safe, no stemming surprises). Tag names are matched
   through the join, not baked into the vector, so renaming a tag never needs a reindex.
@@ -83,7 +85,8 @@ Why one collection per item: a folder is a single home; tags already give many-t
   `utm_*`, `fbclid`, `gclid`; sort remaining query params; strip trailing `/`.
   YouTube `youtu.be/ID`, `m.youtube.com`, `/shorts/ID` all collapse to `youtube.com/watch?v=ID`.
 - `classify(url)`: `video` for YouTube hosts, otherwise `link`.
-- Rejects `javascript:`, `data:`, `file:`, credentials in URL, IP-literal hosts.
+- Rejects `javascript:`, `data:`, `file:` and credentials in the URL. IP-literal hosts can be
+  saved (a home NAS bookmark is legitimate); fetching them is still refused by the guard.
 
 Saving a URL that already exists returns **409 `library_duplicate`** with the existing item id;
 the UI offers "Open existing". Restoring a soft-deleted duplicate is allowed (the partial index
@@ -148,9 +151,11 @@ each may make an outbound request.
   (kind, tag, collection, favourite), item list with source host and tags.
 - Capture dialog: one field that accepts a URL or text. A URL becomes a link/video; plain text
   becomes a note; "Save as excerpt" with a source URL field. Tags with autocomplete.
-- Item page `/library/[id]`: source link (`rel="noopener noreferrer nofollow"`), sections
+- Item page `/library/item?id=` (a query-string id: with cache components a dynamic segment
+  cannot prerender a per-user page): source link (`rel="noopener noreferrer nofollow"`), sections
   labelled **Saved excerpt** and **My note**, markdown rendered without raw HTML, status and
-  collection controls, delete with undo toast.
+  collection controls, delete with undo toast. Notes render as plain text with line breaks; a
+  Markdown renderer is a follow-up (no new dependency in M4).
 - Trash view, collections and tag management in a side panel.
 - Quick action "Save to Library" on `/today`; sidebar entry under the existing nav sections.
 - PWA `share_target` in the manifest so "Share → Personal OS" on a phone opens the capture
