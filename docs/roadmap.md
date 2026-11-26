@@ -11,14 +11,14 @@ the owner), **Planned**.
 | # | Experience | Status | Where it lives today |
 |---|---|---|---|
 | 1 | Personal Dashboard | Partial | `/today`: due tasks and today's habits. No calendar, email or briefing yet. |
-| 2 | Second Brain / Life Library | Planned | — |
+| 2 | Second Brain / Life Library | Partial | `/library`: save notes, links, YouTube videos and excerpts from one capture box (or a phone's share sheet); duplicate links caught on a normalised URL; Inbox / To read / Reading / Archived, tags, collections, favourites; keyword search ranked by title > excerpt > note plus partial matches; trash with restore and permanent delete (audited); link titles fetched safely; `search_library` AI tool. Not yet: Ask Your Library (grounded answers, M5), AI summaries, Drive files, scheduled refresh. |
 | 3 | Daily Review Agent | Planned | — (the Chief of Staff can summarize the day in chat; no saved reviews) |
 | 4 | Personal Goal Tracker | Partial | `/goals`: numeric or milestone progress computed from recorded activity, On Track / At Risk / Paused / Completed, check-ins, append-only history that survives target edits, `get_goals` AI tool. Not yet: links to tasks/habits, weekly actions, weekly AI reflection. |
 | 5 | Habit & Routine Coach | Partial | `/habits`: versioned schedules, streak engine, breaks. Routines, reflections and weekly report not yet. |
 | 6 | Meeting Memory Assistant | Planned | — |
 | 7 | Email Command Center | Planned | — |
-| 8 | Personal Knowledge Search | Planned | — |
-| — | AI Chief of Staff (read-only) | Done; live calls need a key | `/chief`: 11 read tools, consent, monthly budget, usage ledger, encrypted history. Any provider, bring your own key: Claude (native), OpenAI, Gemini, OpenRouter (incl. free models), Groq, local Ollama (free, offline) or any OpenAI-compatible endpoint, with a model picked from the provider's live list. Keys verified, encrypted at rest, only the last 4 characters shown; free models cost $0 in the budget; private endpoint URLs blocked in production. `AI_KEY_MODE=user` enforced in production. |
+| 8 | Personal Knowledge Search | Planned | Keyword search exists inside `/library` (M4); the shared search service across sources is M5. |
+| — | AI Chief of Staff (read-only) | Done; live calls need a key | `/chief`: 12 read tools (incl. `search_library`), consent, monthly budget, usage ledger, encrypted history. Any provider, bring your own key: Claude (native), OpenAI, Gemini, OpenRouter (incl. free models), Groq, local Ollama (free, offline) or any OpenAI-compatible endpoint, with a model picked from the provider's live list. Keys verified, encrypted at rest, only the last 4 characters shown; free models cost $0 in the budget; private endpoint URLs blocked in production. `AI_KEY_MODE=user` enforced in production. |
 
 ## Milestones
 
@@ -28,8 +28,8 @@ the owner), **Planned**.
 | M1 | Application foundation | Done (CI not yet run) | Google OIDC + dev sign-in, sessions, settings incl. time zone, consents, append-only audit log, RFC 9457 errors, log redaction, security headers, CSRF protection, Alembic, pytest on real Postgres, web shell with themes, privacy mode and PWA manifest, pre-commit + gitleaks, `.github/workflows/ci.yml` (runs once pushed) |
 | M2 | Tasks, calendar view, Personal Dashboard | Partial | Done: recurring tasks with priorities and due dates, `/today` dashboard. Not yet: calendar view, reminders, daily briefing, quick actions. |
 | M3 | Goals and Habits | Done | Habits with schedules, check-ins, time-zone-aware streaks, breaks. Goals with milestones, numeric targets, check-ins, progress and health, history kept across target edits (migration 0004). Follow-ups: link goals to tasks/habits, weekly actions, goals on `/today`. |
-| M4 | Second Brain capture and organization | Planned | |
-| M5 | Knowledge Search and Ask Your Library | Planned | Postgres full-text search first; one index shared with M4 |
+| M4 | Second Brain capture and organization | Done (CI green on #12–#18) | Plan: [plans/m4-second-brain.md](plans/m4-second-brain.md). Migration 0007 (items with a generated weighted `tsvector`, collections, tags). Capture, dedup, search, tags, collections, trash/restore/purge with audit, link metadata through the outbound-request guard (`core/netguard.py`, which now also pins AI provider requests), `search_library` tool, `/library` web app with PWA share target. Follow-ups: Markdown rendering for notes, automatic trash purge (M6 worker), AI summaries (M5). |
+| M5 | Knowledge Search and Ask Your Library | Planned | Builds on M4's `library_items.search_tsv`; add `content_chunks` and a unified search service over library, tasks and later meetings |
 | M6 | Daily Review Agent | Planned | First milestone that needs the background worker (Celery + Redis) for scheduled reviews |
 | M7 | Meeting Memory Assistant | Planned | |
 | M8 | Email Command Center | Planned | Gmail read-only; no sending |

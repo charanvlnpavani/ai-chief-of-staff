@@ -4,9 +4,9 @@ One private, intelligent workspace to plan the day, capture knowledge, review pr
 goals, build habits, remember meetings, manage email, and search personal information with
 trustworthy source references. The full blueprint is in [docs/vision.md](docs/vision.md).
 
-> **Status: in development.** Working today: sign-in, Tasks, Habits, Goals, learning Roadmaps (basic to pro, day by day), the Today dashboard, a
+> **Status: in development.** Working today: sign-in, Tasks, Habits, Goals, learning Roadmaps (basic to pro, day by day), the Life Library (save links, videos, quotes and notes; tag, organise and search them), the Today dashboard, a
 > read-only AI Chief of Staff, and Work & learning (learning time vs a daily goal, DSA practice
-> with spaced review, skills). Next up: finishing M2 (calendar view, reminders, daily briefing). Second Brain, Knowledge Search, Daily Review,
+> with spaced review, skills). Next up: finishing M2 (calendar view, reminders, daily briefing). Knowledge Search (Ask Your Library), Daily Review,
 > Meetings and Email follow, one milestone at a time. See [docs/roadmap.md](docs/roadmap.md).
 
 | Layer | Stack |
