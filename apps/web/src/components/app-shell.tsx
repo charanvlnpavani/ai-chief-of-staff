@@ -30,6 +30,7 @@ import { useTheme } from "next-themes";
 import { usePrivacy } from "@/components/privacy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -125,7 +126,8 @@ export function AppShell({
   user,
   children,
 }: {
-  user: { displayName: string; email: string };
+  /** Undefined while the session is still loading; the page itself renders regardless. */
+  user?: { displayName: string; email: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -210,7 +212,11 @@ export function AppShell({
               {hidden ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
               <span className="hidden sm:inline">{hidden ? "Hidden" : "Privacy"}</span>
             </Button>
-            <UserMenu name={user.displayName} email={user.email} />
+            {user ? (
+              <UserMenu name={user.displayName} email={user.email} />
+            ) : (
+              <Skeleton className="h-8 w-24" aria-label="Loading account" />
+            )}
           </div>
         </header>
 

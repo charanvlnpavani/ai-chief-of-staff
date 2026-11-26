@@ -101,6 +101,40 @@ class AIToolExecution(IdMixin, OwnedMixin, Base):
     )
 
 
+class AICredential(IdMixin, OwnedMixin, Base):
+    """A user's connection to one AI provider: their own API key (encrypted with the app
+    keyring, AAD binds it to the user and provider), an optional endpoint URL and the chosen
+    model. One connection per user is active; every AI call for that user uses it."""
+
+    __tablename__ = "ai_credentials"
+
+    provider: Mapped[str] = mapped_column(String(16))
+    key_enc: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
+    key_hint: Mapped[str | None] = mapped_column(String(8), default=None)
+    base_url: Mapped[str | None] = mapped_column(String(300), default=None)
+    model: Mapped[str | None] = mapped_column(String(120), default=None)
+    is_active: Mapped[bool] = mapped_column(default=False)
+    verified_at: Mapped[datetime] = mapped_column(default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        CheckConstraint(
+            "provider IN ('anthropic', 'openai', 'gemini', 'openrouter', 'groq', 'ollama', "
+            "'custom')",
+            name="provider_valid",
+        ),
+        CheckConstraint("NOT is_active OR model IS NOT NULL", name="active_has_model"),
+        UniqueConstraint("user_id", "provider"),
+        Index(
+            "uq_ai_credentials_one_active",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
+
+
 class AIUsageLedger(IdMixin, OwnedMixin, Base):
     """Tokens and cost for every API call; the monthly budget is enforced from this table."""
 

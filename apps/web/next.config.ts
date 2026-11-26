@@ -15,6 +15,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // The /api proxy to FastAPI gives up after 30 s by default, which turned slow but successful
+    // AI calls into 500s. Long work (roadmap drafts) now runs as a background job that the page
+    // polls; this headroom covers single AI calls such as a slow local model answering.
+    proxyTimeout: 120_000,
+  },
   poweredByHeader: false,
   transpilePackages: ["@personal-os/api-client"],
   turbopack: {

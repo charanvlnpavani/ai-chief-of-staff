@@ -1,20 +1,34 @@
 """Roadmaps API: built-in and AI drafts, daily ticks, completion, guards and isolation."""
 
+import asyncio
+import re
+import uuid
 from collections.abc import Iterator
 from datetime import timedelta
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.models import AIUsageLedger
 from app.ai.pricing import Usage
 from app.core.time import local_today
+from app.modules.roadmaps import jobs as roadmap_jobs
 from app.modules.roadmaps import router as roadmaps_router
-from app.modules.roadmaps.generator import GeneratedRoadmap
-from app.modules.roadmaps.schemas import PlannedDay, PlannedLevel, PlannedRoadmap, PlannedTask
+from app.modules.roadmaps.drafting import split_days
+from app.modules.roadmaps.generator import AIReply
+from app.modules.roadmaps.schemas import (
+    PlannedDay,
+    PlannedDays,
+    PlannedOutline,
+    PlannedOutlineLevel,
+    PlannedTask,
+    PlannedTopicList,
+)
 
 TZ = "Asia/Kolkata"
 BASE = "/api/v1/roadmaps"
@@ -25,38 +39,74 @@ def day(offset: int = 0) -> str:
 
 
 class FakeGenerator:
-    """Scripted stand-in for Claude: never calls the API."""
+    """Scripted stand-in for the model: never calls a provider.
+
+    Knobs imitate a weak model: `outline_per_level` caps the concepts it outlines per level,
+    `skip_first_try` drops the last day of every first expand reply, and `never_write` lists
+    concepts it never expands.
+    """
 
     def __init__(self, *, refuse: bool = False) -> None:
         self.refuse = refuse
+        self.outline_per_level: int | None = None
+        self.skip_first_try = False
+        self.never_write: set[str] = set()
+        self.gate: asyncio.Event | None = None  # when set, every call waits for it
         self.calls: list[str] = []
+        self._expanded: set[str] = set()
 
-    async def generate(
-        self, *, subject: str, target_days: int, minutes_per_day: int
-    ) -> GeneratedRoadmap:
-        self.calls.append(subject)
-        plan = PlannedRoadmap(
-            title=f"{subject}: zero to pro",
-            levels=[
-                PlannedLevel(
-                    level=level,  # type: ignore[arg-type]
-                    days=[
-                        PlannedDay(
-                            tasks=[
-                                PlannedTask(
-                                    title=f"{level} task {n}", detail="  Do it.  ", minutes=1
-                                )
-                            ]
-                        )
-                        for n in (1, 2)
-                    ],
-                )
-                # Deliberately out of order: the service must sort levels.
-                for level in ("advanced", "basic", "pro", "intermediate")
-            ],
-        )
-        return GeneratedRoadmap(
-            plan=None if self.refuse else plan,
+    async def complete[T: BaseModel](
+        self, *, system: str, user: str, schema: type[T], max_tokens: int
+    ) -> AIReply[T]:
+        if self.gate is not None:
+            await self.gate.wait()
+        self.calls.append(schema.__name__)
+        parsed: BaseModel | None = None
+        if self.refuse:
+            pass
+        elif schema is PlannedOutline:
+            counts = dict(re.findall(r"- (basic|intermediate|advanced|pro): (\d+) days", user))
+            parsed = PlannedOutline(
+                title="  System design:   zero to pro ",
+                levels=[
+                    PlannedOutlineLevel(
+                        level=lv,
+                        topics=[f"{lv} concept {i}" for i in range(1, int(counts[lv]) + 1)][
+                            : self.outline_per_level
+                        ],
+                    )
+                    # Deliberately out of order: the drafter must sort levels.
+                    for lv in ("advanced", "basic", "pro", "intermediate")
+                ],
+            )
+        elif schema is PlannedTopicList:
+            n, lv = re.search(r"Give exactly (\d+) more (\w+)-level", user).groups()  # type: ignore[union-attr]
+            # Includes a duplicate of an existing concept, which must be dropped.
+            parsed = PlannedTopicList(
+                topics=[f"{lv} concept 1"] + [f"{lv} extra {i}" for i in range(1, int(n) + 1)]
+            )
+        elif schema is PlannedDays:
+            wanted = re.findall(r"^Day \d+: (.+)$", user, flags=re.MULTILINE)
+            first_try = not any(topic in self._expanded for topic in wanted)
+            self._expanded.update(wanted)
+            if self.skip_first_try and first_try:
+                wanted = wanted[:-1]
+            parsed = PlannedDays(
+                days=[
+                    PlannedDay(
+                        topic=topic,
+                        tasks=[
+                            PlannedTask(title=f"Understand: {topic}", detail="  Why.  ", minutes=1),
+                            PlannedTask(title=f"Practise: {topic}", detail="Do it.", minutes=1),
+                            PlannedTask(title=f"Check yourself: {topic}?", detail="", minutes=1),
+                        ],
+                    )
+                    for topic in wanted
+                    if topic not in self.never_write
+                ]
+            )
+        return AIReply(
+            parsed=cast(T | None, parsed),
             refused=self.refuse,
             model="claude-opus-5-5",
             usage=Usage(
@@ -66,12 +116,100 @@ class FakeGenerator:
         )
 
 
+def task_titles(draft: dict[str, Any]) -> list[str]:
+    return [d["tasks"][0]["title"] for d in draft["days"]]
+
+
 @pytest.fixture
 def fake_generator(app: FastAPI) -> Iterator[FakeGenerator]:
     fake = FakeGenerator()
     app.dependency_overrides[roadmaps_router._optional_generator] = lambda: fake
     yield fake
     app.dependency_overrides.pop(roadmaps_router._optional_generator, None)
+
+
+@pytest.fixture(autouse=True)
+def no_leftover_jobs() -> Iterator[None]:
+    roadmap_jobs._jobs.clear()
+    yield
+    roadmap_jobs._jobs.clear()
+
+
+async def finish_job(job_id: str) -> None:
+    """Wait for a background draft to finish (the fake model answers instantly)."""
+    task = roadmap_jobs._jobs[uuid.UUID(job_id)].task
+    if task is not None:
+        await task
+
+
+async def test_draft_job_runs_in_the_background(
+    owner: AsyncClient,
+    intruder: AsyncClient,
+    fake_generator: FakeGenerator,
+    db_session: AsyncSession,
+) -> None:
+    await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
+    fake_generator.gate = asyncio.Event()  # hold the job while we look at it
+    request = {"subject": "System design", "targetDays": 30, "minutesPerDay": 45}
+    started = await owner.post(f"{BASE}/draft-jobs", json=request)
+    assert started.status_code == 202
+    job = started.json()
+    assert (job["status"], job["stage"], job["daysTotal"], job["draft"]) == (
+        "running",
+        "outline",
+        0,
+        None,
+    )
+    busy = await owner.post(f"{BASE}/draft-jobs", json=request)
+    assert busy.json()["code"] == "draft_in_progress"  # one draft at a time
+    assert (await intruder.get(f"{BASE}/draft-jobs/{job['id']}")).status_code == 404
+
+    fake_generator.gate.set()
+    await finish_job(job["id"])
+    done = (await owner.get(f"{BASE}/draft-jobs/{job['id']}")).json()
+    assert (done["status"], done["stage"], done["daysDone"], done["daysTotal"]) == (
+        "done",
+        "done",
+        30,
+        30,
+    )
+    assert done["error"] is None
+    assert len(done["draft"]["days"]) == 30
+    assert (await owner.post(BASE, json=done["draft"])).status_code == 201
+    rows = list(
+        await db_session.scalars(select(AIUsageLedger).where(AIUsageLedger.route == "roadmap"))
+    )
+    assert len(rows) == len(fake_generator.calls) == 8  # billed from the job's own session
+
+
+async def test_draft_job_failure_is_reported_and_costed(
+    owner: AsyncClient, fake_generator: FakeGenerator, db_session: AsyncSession
+) -> None:
+    fake_generator.refuse = True
+    await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
+    job = (await owner.post(f"{BASE}/draft-jobs", json={"subject": "Something"})).json()
+    await finish_job(job["id"])
+    failed = (await owner.get(f"{BASE}/draft-jobs/{job['id']}")).json()
+    assert failed["status"] == "failed"
+    assert failed["error"]["code"] == "ai_refused"
+    assert failed["draft"] is None
+    rows = list(
+        await db_session.scalars(select(AIUsageLedger).where(AIUsageLedger.route == "roadmap"))
+    )
+    assert len(rows) == 1
+
+
+async def test_draft_job_gates_and_built_ins(owner: AsyncClient) -> None:
+    # Gates are checked when the job starts, so the page can explain them straight away.
+    missing = await owner.post(f"{BASE}/draft-jobs", json={"subject": "Rust"})
+    assert missing.json()["code"] == "ai_key_required"
+    # A built-in roadmap needs no AI and comes back finished.
+    built_in = (await owner.post(f"{BASE}/draft-jobs", json={"subject": "dsa"})).json()
+    assert built_in["status"] == "done"
+    assert built_in["draft"]["source"] == "template"
+    assert built_in["daysDone"] == built_in["daysTotal"] == len(built_in["draft"]["days"])
+    unknown = await owner.get(f"{BASE}/draft-jobs/{uuid.uuid4()}")
+    assert unknown.status_code == 404
 
 
 async def save_dsa(client: AsyncClient) -> dict[str, object]:
@@ -166,19 +304,29 @@ async def test_ai_draft_is_gated_and_costed(
     draft = (await owner.post(f"{BASE}/draft", json=request)).json()
     assert draft["source"] == "ai"
     assert draft["title"] == "System design: zero to pro"
-    assert [d["level"] for d in draft["days"]] == ["basic"] * 2 + ["intermediate"] * 2 + [
+    # The full 30 days, split 30/30/25/15 % and sorted, never trusted as given.
+    assert [d["level"] for d in draft["days"]] == ["basic"] * 9 + ["intermediate"] * 9 + [
         "advanced"
-    ] * 2 + ["pro"] * 2  # sorted, never trusted as given
-    assert draft["days"][0]["tasks"][0] == {
-        "title": "basic task 1",
-        "detail": "Do it.",
-        "minutes": 5,  # clamped from 1
-    }
+    ] * 8 + ["pro"] * 4
+    assert task_titles(draft)[:2] == ["Understand: basic concept 1", "Understand: basic concept 2"]
+    assert task_titles(draft)[-1] == "Understand: pro concept 4"
+    first_day = draft["days"][0]["tasks"]
+    assert [t["title"].split(":")[0] for t in first_day] == [
+        "Understand",
+        "Practise",
+        "Check yourself",
+    ]
+    assert first_day[0]["detail"] == "Why."
+    assert first_day[2]["detail"] is None
+    # 1-minute tasks are clamped, then scaled to the 45 minutes a day the learner has.
+    assert [t["minutes"] for t in first_day] == [15, 15, 15]
+    # One outline call plus one expand call per batch of up to 7 days (2 + 2 + 2 + 1).
+    assert fake_generator.calls == ["PlannedOutline"] + ["PlannedDays"] * 7
     rows = list(
         await db_session.scalars(select(AIUsageLedger).where(AIUsageLedger.route == "roadmap"))
     )
-    assert len(rows) == 1
-    assert rows[0].cost_usd_micros > 0
+    assert len(rows) == len(fake_generator.calls)  # every call is costed
+    assert all(row.cost_usd_micros > 0 for row in rows)
     # Saving the AI draft works like any other draft.
     assert (await owner.post(BASE, json=draft)).status_code == 201
 
@@ -190,10 +338,63 @@ async def test_ai_refusal_is_still_costed(
     await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
     refused = await owner.post(f"{BASE}/draft", json={"subject": "Something"})
     assert refused.json()["code"] == "ai_refused"
+    assert fake_generator.calls == ["PlannedOutline"]  # stops at the refusal
     rows = list(
         await db_session.scalars(select(AIUsageLedger).where(AIUsageLedger.route == "roadmap"))
     )
     assert len(rows) == 1
+
+
+async def test_a_weak_model_still_gets_the_full_roadmap(
+    owner: AsyncClient, fake_generator: FakeGenerator, db_session: AsyncSession
+) -> None:
+    """Small local models outline too few days and skip days; the draft is still complete."""
+    fake_generator.outline_per_level = 2
+    fake_generator.skip_first_try = True
+    fake_generator.never_write = {"intermediate extra 3"}
+    await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
+    request = {"subject": "React", "targetDays": 45, "minutesPerDay": 60}
+    draft = (await owner.post(f"{BASE}/draft", json=request)).json()
+
+    assert len(draft["days"]) == 45  # what the learner asked for, not a one-week sketch
+    levels = [d["level"] for d in draft["days"]]
+    assert {lv: levels.count(lv) for lv in dict.fromkeys(levels)} == {
+        "basic": 14,
+        "intermediate": 13,
+        "advanced": 11,
+        "pro": 7,
+    }
+    titles = task_titles(draft)
+    assert len(set(titles)) == 45  # the duplicate concept from the top-up was dropped
+    assert titles[:3] == [
+        "Understand: basic concept 1",
+        "Understand: basic concept 2",
+        "Understand: basic extra 1",
+    ]
+    # A day the model never wrote gets plain, concrete tasks instead of disappearing.
+    fallback = next(
+        d["tasks"] for d in draft["days"] if "intermediate extra 3" in d["tasks"][0]["title"]
+    )
+    assert [t["title"].split(":")[0] for t in fallback] == [
+        "Understand",
+        "Practise",
+        "Check yourself",
+    ]
+    assert sum(t["minutes"] for t in fallback) == 60
+    assert fake_generator.calls.count("PlannedTopicList") == 4  # one top-up per short level
+    rows = list(
+        await db_session.scalars(select(AIUsageLedger).where(AIUsageLedger.route == "roadmap"))
+    )
+    assert len(rows) == len(fake_generator.calls)
+
+
+@pytest.mark.parametrize("total", [7, 8, 30, 45, 100, 180])
+def test_split_days(total: int) -> None:
+    counts = split_days(total)
+    assert list(counts) == ["basic", "intermediate", "advanced", "pro"]
+    assert sum(counts.values()) == max(total, 8)
+    assert min(counts.values()) >= 2
+    assert counts["basic"] >= counts["advanced"] >= counts["pro"]
 
 
 async def test_ai_budget_and_missing_key(
@@ -201,7 +402,7 @@ async def test_ai_budget_and_missing_key(
 ) -> None:
     # No ANTHROPIC_API_KEY in tests: new subjects explain why, built-ins still work.
     missing = await owner.post(f"{BASE}/draft", json={"subject": "Rust"})
-    assert missing.json()["code"] == "ai_not_configured"
+    assert missing.json()["code"] == "ai_key_required"
     assert (await owner.post(f"{BASE}/draft", json={"subject": "dsa"})).status_code == 200
     fake = FakeGenerator()
     app.dependency_overrides[roadmaps_router._optional_generator] = lambda: fake
@@ -262,3 +463,24 @@ async def test_other_users_cannot_see_or_tick(owner: AsyncClient, intruder: Asyn
     # A task id from another user's roadmap is not found through your own roadmap.
     assert (await intruder.put(f"{BASE}/{other['id']}/tasks/{task}/done")).status_code == 404
     assert (await owner.get(url)).json()["progress"]["done"] == 0
+
+
+async def test_a_running_draft_can_be_found_and_cancelled(
+    owner: AsyncClient, fake_generator: FakeGenerator, db_session: AsyncSession
+) -> None:
+    await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
+    fake_generator.gate = asyncio.Event()  # the model never answers until released
+    job = (await owner.post(f"{BASE}/draft-jobs", json={"subject": "React"})).json()
+    busy = (await owner.post(f"{BASE}/draft-jobs", json={"subject": "Go"})).json()
+    assert busy["code"] == "draft_in_progress"
+    assert busy["jobId"] == job["id"]  # the page shows this draft instead of an error
+    assert "React" in busy["detail"]
+
+    cancelled = (await owner.delete(f"{BASE}/draft-jobs/{job['id']}")).json()
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["draft"] is None
+    # Cancelling frees the slot for a new draft.
+    fake_generator.gate.set()
+    again = await owner.post(f"{BASE}/draft-jobs", json={"subject": "Go"})
+    assert again.status_code == 202
+    await finish_job(again.json()["id"])

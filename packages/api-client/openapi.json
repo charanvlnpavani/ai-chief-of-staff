@@ -3247,6 +3247,133 @@
         }
       }
     },
+    "/api/v1/roadmaps/draft-jobs": {
+      "post": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Start Draft Job",
+        "description": "Start drafting a roadmap in the background; poll GET /draft-jobs/{id} for progress.\n\nA built-in roadmap comes back finished at once. Nothing is saved until POST /roadmaps.",
+        "operationId": "roadmaps_start_draft_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/draft-jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Get Draft Job",
+        "operationId": "roadmaps_get_draft_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Cancel Draft Job",
+        "description": "Stop a draft that is still being written. Calls already answered are still billed.",
+        "operationId": "roadmaps_cancel_draft_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/roadmaps/{roadmap_id}": {
       "get": {
         "tags": [
@@ -3372,6 +3499,61 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/{roadmap_id}/days/{day}/reference": {
+      "get": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Get Day Reference",
+        "description": "A roadmap.sh link, plus notes from the local clone for the concept this day teaches.\n\nThe notes come from this machine only (personal use under the roadmap.sh licence), so the\nresponse must not be cached by anything between the API and the browser.",
+        "operationId": "roadmaps_get_day_reference",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          },
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayReferenceOut"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3524,6 +3706,245 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AIStatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/providers": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "List Providers",
+        "description": "AI providers you can connect with your own key (or local Ollama, no key).",
+        "operationId": "ai_list_providers",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderOut"
+                  },
+                  "type": "array",
+                  "title": "Response Ai List Providers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/connections": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Connections",
+        "description": "Your connected providers and which one is active. Keys are never returned.",
+        "operationId": "ai_get_connections",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/connections/{provider}": {
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Connect Provider",
+        "description": "Check the key (and endpoint) with the provider, then store it encrypted.",
+        "operationId": "ai_connect_provider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Change Connection",
+        "description": "Pick another model, or make this provider the active one.",
+        "operationId": "ai_change_connection",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Disconnect Provider",
+        "operationId": "ai_disconnect_provider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/connections/{provider}/models": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Provider Models",
+        "description": "The provider's live model list, fetched with your key (installed models for Ollama).",
+        "operationId": "ai_provider_models",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelOut"
+                  },
+                  "title": "Response Ai Provider Models"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3806,7 +4227,34 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "title": "Enabled"
+            "title": "Enabled",
+            "description": "An AI connection is available for you."
+          },
+          "keySource": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "server"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keysource"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "model": {
             "type": "string",
@@ -3839,6 +4287,52 @@
           "budgetRemainingUsd"
         ],
         "title": "AIStatusOut"
+      },
+      "ActiveAIOut": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "gemini",
+              "openrouter",
+              "groq",
+              "ollama",
+              "custom"
+            ],
+            "title": "Provider"
+          },
+          "providerName": {
+            "type": "string",
+            "title": "Providername"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "server"
+            ],
+            "title": "Source"
+          },
+          "free": {
+            "type": "boolean",
+            "title": "Free"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "providerName",
+          "model",
+          "source",
+          "free"
+        ],
+        "title": "ActiveAIOut"
       },
       "AttemptIn": {
         "properties": {
@@ -4030,6 +4524,202 @@
           "recordedAt"
         ],
         "title": "CompletionOut"
+      },
+      "ConnectionIn": {
+        "properties": {
+          "apiKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apikey",
+            "description": "Your API key. Never returned. Omit to keep the stored one."
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseurl"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "activate": {
+            "type": "boolean",
+            "title": "Activate",
+            "description": "Use this provider for AI from now on.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "ConnectionIn"
+      },
+      "ConnectionOut": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "gemini",
+              "openrouter",
+              "groq",
+              "ollama",
+              "custom"
+            ],
+            "title": "Provider"
+          },
+          "providerName": {
+            "type": "string",
+            "title": "Providername"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint",
+            "description": "Last four characters of your key, e.g. …wxyz."
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseurl"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "free": {
+            "type": "boolean",
+            "title": "Free"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Verifiedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "providerName",
+          "hint",
+          "baseUrl",
+          "model",
+          "active",
+          "free",
+          "verifiedAt"
+        ],
+        "title": "ConnectionOut"
+      },
+      "ConnectionUpdate": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "title": "ConnectionUpdate"
+      },
+      "ConnectionsOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "user",
+              "server"
+            ],
+            "title": "Mode",
+            "description": "`user`: everyone brings their own key. `server`: a shared key may be used."
+          },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveAIOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionOut"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "active",
+          "connections"
+        ],
+        "title": "ConnectionsOut"
       },
       "ConsentOut": {
         "properties": {
@@ -4242,6 +4932,58 @@
         ],
         "title": "DashboardOut"
       },
+      "DayReferenceOut": {
+        "properties": {
+          "roadmapName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roadmapname"
+          },
+          "roadmapUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roadmapurl",
+            "description": "https://roadmap.sh/<roadmap>, when one fits."
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LearnTopicOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only with a local clone configured."
+          },
+          "localContent": {
+            "type": "boolean",
+            "title": "Localcontent",
+            "description": "ROADMAP_SH_CONTENT_DIR is set and found."
+          }
+        },
+        "type": "object",
+        "required": [
+          "roadmapName",
+          "roadmapUrl",
+          "topic",
+          "localContent"
+        ],
+        "title": "DayReferenceOut",
+        "description": "roadmap.sh link for the roadmap's subject, plus matching topic notes from the user's\nown local clone (personal use only; read from this machine, never stored)."
+      },
       "DevLoginIn": {
         "properties": {
           "email": {
@@ -4331,6 +5073,97 @@
           "tasks"
         ],
         "title": "DraftDay"
+      },
+      "DraftJobError": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "DraftJobError"
+      },
+      "DraftJobOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "outline",
+              "writing",
+              "done"
+            ],
+            "title": "Stage",
+            "description": "outline: planning one concept per day; writing: turning days into tasks."
+          },
+          "daysDone": {
+            "type": "integer",
+            "title": "Daysdone"
+          },
+          "daysTotal": {
+            "type": "integer",
+            "title": "Daystotal",
+            "description": "0 until the outline is ready."
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoadmapDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftJobError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject",
+          "status",
+          "stage",
+          "daysDone",
+          "daysTotal"
+        ],
+        "title": "DraftJobOut",
+        "description": "A roadmap being drafted in the background. Poll until status is done or failed."
       },
       "DraftRequest": {
         "properties": {
@@ -6071,6 +6904,56 @@
         ],
         "title": "HistoryDay"
       },
+      "LearnResourceOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "official, opensource, article, video or roadmap."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "url"
+        ],
+        "title": "LearnResourceOut"
+      },
+      "LearnTopicOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/LearnResourceOut"
+            },
+            "type": "array",
+            "title": "Resources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "resources"
+        ],
+        "title": "LearnTopicOut"
+      },
       "LearningSessionIn": {
         "properties": {
           "localDate": {
@@ -6673,6 +7556,24 @@
         },
         "type": "object",
         "title": "MilestoneUpdate"
+      },
+      "ModelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "free": {
+            "type": "boolean",
+            "title": "Free"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "free"
+        ],
+        "title": "ModelOut"
       },
       "Page_EntryOut_": {
         "properties": {
@@ -7304,6 +8205,102 @@
           "totalSolved"
         ],
         "title": "ProblemsWidget"
+      },
+      "ProviderOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "gemini",
+              "openrouter",
+              "groq",
+              "ollama",
+              "custom"
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai_compatible"
+            ],
+            "title": "Kind"
+          },
+          "needsKey": {
+            "type": "boolean",
+            "title": "Needskey"
+          },
+          "customUrl": {
+            "type": "boolean",
+            "title": "Customurl",
+            "description": "You can (or must) enter the endpoint URL."
+          },
+          "defaultBaseUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defaultbaseurl"
+          },
+          "keyUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyurl",
+            "description": "Where to create an API key."
+          },
+          "freeNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freenote"
+          },
+          "defaultModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defaultmodel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "needsKey",
+          "customUrl",
+          "defaultBaseUrl",
+          "keyUrl",
+          "freeNote",
+          "defaultModel"
+        ],
+        "title": "ProviderOut"
       },
       "RoadmapDetailOut": {
         "properties": {

@@ -1,7 +1,21 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Circle, Flame, Pause, Play, Plus, Route, Sparkles, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  ExternalLink,
+  Flame,
+  Pause,
+  Play,
+  Plus,
+  Route,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -54,7 +68,7 @@ function DraftPreview({ draft }: { draft: Draft }) {
     <div className="space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium">{draft.title}</p>
-        <Badge variant="secondary">{draft.source === "template" ? "Built-in" : "Drafted by Claude"}</Badge>
+        <Badge variant="secondary">{draft.source === "template" ? "Built-in" : "Drafted by AI"}</Badge>
       </div>
       <p className="text-sm text-muted-foreground">
         {draft.days.length} days · about {formatMinutes(minutes / draft.days.length)} a day
@@ -80,13 +94,49 @@ function DraftPreview({ draft }: { draft: Draft }) {
   );
 }
 
+function DraftProgress({
+  job,
+  onCancel,
+  cancelling,
+}: {
+  job: Schemas["DraftJobOut"] | undefined;
+  onCancel?: () => void;
+  cancelling: boolean;
+}) {
+  const writing = job?.stage === "writing" && job.daysTotal > 0;
+  return (
+    <div role="status" aria-live="polite" className="space-y-2 rounded-lg border p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium">
+          {job ? `“${job.subject}”: ` : ""}
+          {writing
+            ? `writing each day's tasks, ${job.daysDone} of ${job.daysTotal} days`
+            : "outlining one concept per day, from basics to pro…"}
+        </p>
+        {onCancel ? (
+          <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={cancelling}>
+            {cancelling ? "Cancelling…" : "Cancel"}
+          </Button>
+        ) : null}
+      </div>
+      <Progress value={writing ? Math.round((job.daysDone / job.daysTotal) * 100) : 5} aria-label="Draft progress" />
+      <p className="text-xs text-muted-foreground">
+        Every day gets tasks to understand the concept, practise it and check yourself. A cloud model
+        takes under a minute; a local model can take several minutes. You can close this window and
+        reopen it; drafting continues.
+      </p>
+    </div>
+  );
+}
+
 function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [days, setDays] = useState("45");
   const [minutes, setMinutes] = useState("60");
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [instant, setInstant] = useState<Draft | null>(null); // built-in roadmaps
+  const [jobId, setJobId] = useState<string | null>(null); // AI drafts run in the background
   const [aiMissing, setAiMissing] = useState(false);
   const templates = useQuery({
     queryKey: [...qk.roadmaps, "templates"],
@@ -97,20 +147,55 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const build = useMutation({
     mutationFn: (topic: string) =>
       unwrap(
-        api.POST("/api/v1/roadmaps/draft", {
+        api.POST("/api/v1/roadmaps/draft-jobs", {
           body: { subject: topic, targetDays: Number(days), minutesPerDay: Number(minutes) },
         }),
       ),
     onMutate: () => {
-      setDraft(null);
+      setInstant(null);
+      setJobId(null);
       setAiMissing(false);
     },
-    onSuccess: setDraft,
+    onSuccess: (job) => {
+      if (job.status === "done" && job.draft) setInstant(job.draft);
+      else setJobId(job.id);
+    },
     onError: (error) => {
-      if (error instanceof ApiError && error.code === "ai_not_configured") setAiMissing(true);
-      else toast.error(errorMessage(error));
+      const runningId = error instanceof ApiError ? (error.problem as { jobId?: string } | undefined)?.jobId : undefined;
+      if (error instanceof ApiError && error.code === "ai_key_required") setAiMissing(true);
+      else if (error instanceof ApiError && error.code === "draft_in_progress" && runningId) {
+        // Show the draft that is already being written instead of an error.
+        setJobId(runningId);
+        toast.info("A roadmap is already being drafted. Here is its progress; cancel it to start another.");
+      } else toast.error(errorMessage(error));
     },
   });
+  const cancel = useMutation({
+    mutationFn: (id: string) =>
+      unwrap(api.DELETE("/api/v1/roadmaps/draft-jobs/{job_id}", { params: { path: { job_id: id } } })),
+    onSuccess: () => {
+      setJobId(null);
+      toast.success("Draft cancelled");
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const job = useQuery({
+    queryKey: [...qk.roadmaps, "draft-job", jobId],
+    queryFn: () =>
+      unwrap(api.GET("/api/v1/roadmaps/draft-jobs/{job_id}", { params: { path: { job_id: jobId ?? "" } } })),
+    enabled: jobId !== null,
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 2000 : false),
+    retry: false,
+  });
+  const running = build.isPending || (jobId !== null && !job.isError && (job.data === undefined || job.data.status === "running"));
+  const draft = instant ?? (job.data?.status === "done" ? (job.data.draft ?? null) : null);
+  let failure: string | null = null;
+  if (job.isError) failure = "This draft was interrupted (the app restarted). Build the roadmap again.";
+  else if (job.data?.status === "failed") failure = job.data.error?.message ?? "Drafting failed. Try again.";
+  const reset = () => {
+    setInstant(null);
+    setJobId(null);
+  };
   const save = useMutation({
     mutationFn: (body: Draft) => unwrap(api.POST("/api/v1/roadmaps", { body })),
     onSuccess: (detail) => {
@@ -120,7 +205,7 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
       onCreated(detail.id);
       setOpen(false);
       setSubject("");
-      setDraft(null);
+      reset();
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -130,7 +215,8 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setDraft(null);
+        // A draft still being written keeps going; reopen the dialog to see it.
+        if (!next && !running) reset();
       }}
     >
       <DialogTrigger asChild>
@@ -141,13 +227,13 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New roadmap</DialogTitle>
-          <DialogDescription>Type a subject. You get daily tasks from basics to pro level and preview them before saving.</DialogDescription>
+          <DialogDescription>Type a subject. You get a day-by-day plan from basics to pro: each day teaches one concept with tasks to understand it, practise it and check yourself. Preview before saving.</DialogDescription>
         </DialogHeader>
         <form
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (subject.trim()) build.mutate(subject.trim());
+            if (subject.trim() && !running) build.mutate(subject.trim());
           }}
         >
           <div className="space-y-1.5">
@@ -170,6 +256,7 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
                   type="button"
                   size="sm"
                   variant="outline"
+                  disabled={running}
                   onClick={() => {
                     setSubject(t.subject);
                     build.mutate(t.subject);
@@ -191,16 +278,31 @@ function NewRoadmapDialog({ onCreated }: { onCreated: (id: string) => void }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Days and minutes shape roadmaps that Claude drafts. Built-in roadmaps have a fixed plan.
+            Days and minutes shape roadmaps that AI drafts. Built-in roadmaps have a fixed plan.
           </p>
-          <Button type="submit" variant="outline" className="w-full" disabled={!subject.trim() || build.isPending}>
-            <Sparkles className="size-4" aria-hidden /> {build.isPending ? "Building roadmap…" : "Build roadmap"}
+          <Button type="submit" variant="outline" className="w-full" disabled={!subject.trim() || running}>
+            <Sparkles className="size-4" aria-hidden /> {running ? "Building your full roadmap…" : "Build roadmap"}
           </Button>
+          {running ? (
+            <DraftProgress
+              job={job.data}
+              cancelling={cancel.isPending}
+              onCancel={jobId ? () => cancel.mutate(jobId) : undefined}
+            />
+          ) : null}
+          {failure ? (
+            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              {failure}
+            </p>
+          ) : null}
         </form>
         {aiMissing ? (
           <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            Roadmaps for new subjects are drafted by Claude, which needs <code>ANTHROPIC_API_KEY</code> in{" "}
-            <code>backend/.env</code>. Built-in roadmaps above work without it.
+            Roadmaps for new subjects are drafted by AI using your own connection (Claude, ChatGPT models, Gemini, or a free local model with Ollama, which also works offline).{" "}
+            <Link href="/settings" className="font-medium underline underline-offset-2">
+              Connect a provider in Settings
+            </Link>
+            . Built-in roadmaps above work without it.
           </p>
         ) : null}
         {draft ? (
@@ -289,8 +391,73 @@ function TaskRow({ task, onToggle, disabled }: { task: Task; onToggle?: (done: b
   );
 }
 
+// ------------------------------------------------------------------ learn more (roadmap.sh)
+
+function useDayReference(roadmapId: string, day: number | undefined) {
+  return useQuery({
+    queryKey: [...qk.roadmaps, "reference", roadmapId, day],
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/v1/roadmaps/{roadmap_id}/days/{day}/reference", {
+          params: { path: { roadmap_id: roadmapId, day: day ?? 1 } },
+        }),
+      ),
+    enabled: day !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+/** Notes for the day's concept from the user's own local roadmap.sh copy (personal use only),
+ *  plus a link to the roadmap on roadmap.sh. Renders nothing when neither applies. */
+function LearnMore({ roadmapId, day, showLink = true }: { roadmapId: string; day: number; showLink?: boolean }) {
+  const ref = useDayReference(roadmapId, day);
+  if (ref.isPending) return <p className="text-xs text-muted-foreground">Looking up notes…</p>;
+  const data = ref.data;
+  if (!data || (!data.topic && !(showLink && data.roadmapUrl))) return null;
+  return (
+    <div className="space-y-2 rounded-lg bg-muted/40 p-3 text-sm">
+      {data.topic ? (
+        <>
+          <p className="flex items-center gap-1.5 font-medium">
+            <BookOpen className="size-4" aria-hidden /> Learn more: {data.topic.title}
+          </p>
+          {data.topic.summary ? <p className="text-muted-foreground">{data.topic.summary}</p> : null}
+          {data.topic.resources.length > 0 ? (
+            <ul className="space-y-1">
+              {data.topic.resources.map((r) => (
+                <li key={r.url} className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {r.kind}
+                  </Badge>
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="truncate underline underline-offset-2">
+                    {r.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      ) : null}
+      {showLink && data.roadmapUrl ? (
+        <a
+          href={data.roadmapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs font-medium underline underline-offset-2"
+        >
+          See the {data.roadmapName} roadmap on roadmap.sh <ExternalLink className="size-3" aria-hidden />
+        </a>
+      ) : null}
+      {data.topic ? (
+        <p className="text-[11px] text-muted-foreground">From your local roadmap.sh copy · for personal use</p>
+      ) : null}
+    </div>
+  );
+}
+
 function FullRoadmap({ detail }: { detail: Detail }) {
   const [openLevel, setOpenLevel] = useState<Level | null>(detail.progress.currentLevel ?? null);
+  const [notesDay, setNotesDay] = useState<number | null>(null);
   const byDay = new Map<number, Task[]>();
   for (const t of detail.tasks) byDay.set(t.day, [...(byDay.get(t.day) ?? []), t]);
   return (
@@ -321,15 +488,26 @@ function FullRoadmap({ detail }: { detail: Detail }) {
               <ol className="space-y-3 border-t px-3 py-2">
                 {days.map(([day, tasks]) => (
                   <li key={day}>
-                    <p className={cn("text-xs font-medium text-muted-foreground", day === detail.progress.currentDay && "text-primary")}>
-                      Day {day}
-                      {day === detail.progress.currentDay ? " · today" : ""}
-                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn("text-xs font-medium text-muted-foreground", day === detail.progress.currentDay && "text-primary")}>
+                        Day {day}
+                        {day === detail.progress.currentDay ? " · today" : ""}
+                      </p>
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        aria-expanded={notesDay === day}
+                        onClick={() => setNotesDay(notesDay === day ? null : day)}
+                      >
+                        {notesDay === day ? "Hide notes" : "Learn more"}
+                      </button>
+                    </div>
                     <ul className="divide-y">
                       {tasks.map((t) => (
                         <TaskRow key={t.id} task={t} />
                       ))}
                     </ul>
+                    {notesDay === day ? <LearnMore roadmapId={detail.id} day={day} showLink={false} /> : null}
                   </li>
                 ))}
               </ol>
@@ -457,6 +635,7 @@ function RoadmapDetail({ id, onDeleted }: { id: string; onDeleted: () => void })
               ))}
             </ul>
           ) : null}
+          {!today.finished && today.days.length > 0 ? <LearnMore roadmapId={d.id} day={today.days[0]} /> : null}
           {today.complete && !today.finished && nextDay !== null && nextDay !== undefined && !today.days.includes(nextDay) ? (
             <div className="rounded-lg bg-primary/5 p-3 text-sm">
               <p className="font-medium">Today&apos;s tasks are done.</p>
@@ -506,7 +685,7 @@ export default function RoadmapsPage() {
         <EmptyState
           icon={Route}
           title="No roadmaps yet"
-          description="Start with the built-in DSA roadmap, or type any subject and Claude drafts one."
+          description="Start with the built-in DSA roadmap, or type any subject and your AI drafts one."
         />
       ) : (
         <div className="space-y-6">

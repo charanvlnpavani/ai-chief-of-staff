@@ -228,13 +228,14 @@ async def record_usage(
     usage: Usage,
     conversation_id: uuid.UUID | None,
     request_id: str | None,
+    free: bool = False,
 ) -> int:
-    micros = cost_micros(model, usage)
+    micros = cost_micros(model, usage, free=free)
     session.add(
         AIUsageLedger(
             user_id=user_id,
             route=route,
-            model=model,
+            model=model[:64],
             api_request_id=request_id,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,

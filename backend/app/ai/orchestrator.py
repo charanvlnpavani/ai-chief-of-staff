@@ -21,7 +21,7 @@ from datetime import date, datetime
 from time import perf_counter
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import service
@@ -69,6 +69,33 @@ def _redact_args(value: Any) -> Any:
     return value
 
 
+def forgiving_input(model: type[BaseModel], raw: Any) -> dict[str, Any]:
+    """Keep only the arguments a tool defines, and drop optional ones that are malformed.
+
+    Small local models often invent arguments or send an optional filter in the wrong shape.
+    Neither can widen what a tool reads (the user and the limits are set by the server), so
+    the call runs with defaults instead of failing, which tempts a small model to guess the
+    answer. A missing or malformed required argument still fails validation.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    names = {key for name, f in model.model_fields.items() for key in (name, f.alias) if key}
+    cleaned = {k: v for k, v in raw.items() if k in names}
+    try:
+        model.model_validate(cleaned)
+    except ValidationError as exc:
+        optional = {
+            key
+            for name, f in model.model_fields.items()
+            if not f.is_required()
+            for key in (name, f.alias)
+            if key
+        }
+        bad = {str(e["loc"][0]) for e in exc.errors() if e["loc"]}
+        cleaned = {k: v for k, v in cleaned.items() if not (k in bad and k in optional)}
+    return cleaned
+
+
 def _tool_result(tool_use_id: str, payload: dict[str, Any], *, is_error: bool) -> dict[str, Any]:
     block: dict[str, Any] = {
         "type": "tool_result",
@@ -105,6 +132,7 @@ async def execute_tool_call(
             "message": f"No tool named {name!r} is available.",
         }
     else:
+        raw_input = forgiving_input(tool.input_model, raw_input)
         try:
             args = tool.input_model.model_validate(raw_input)
         except ValidationError as exc:
@@ -239,6 +267,7 @@ async def run_turn(
                 usage=final.usage,
                 conversation_id=conversation_id,
                 request_id=final.request_id,
+                free=final.free,
             )
             seq += 1
             assistant = await service.append_message(
@@ -248,7 +277,7 @@ async def run_turn(
                 seq=seq,
                 role="assistant",
                 content=final.content,
-                model=final.model,
+                model=final.model[:64],
                 stop_reason=final.stop_reason,
             )
             messages.append({"role": "assistant", "content": final.content})

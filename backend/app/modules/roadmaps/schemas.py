@@ -61,9 +61,69 @@ class TemplateOut(APIModel):
     days: int
 
 
-# ------------------------------------------------------------------ AI output schema
-# Plain types only: this is the structured-output schema Claude must follow. Limits are
-# enforced afterwards when the plan is turned into a RoadmapDraft.
+class DraftJobError(APIModel):
+    code: str
+    message: str
+
+
+class DraftJobOut(APIModel):
+    """A roadmap being drafted in the background. Poll until status is done or failed."""
+
+    id: uuid.UUID
+    subject: str
+    status: Literal["running", "done", "failed", "cancelled"]
+    stage: Literal["outline", "writing", "done"] = Field(
+        description="outline: planning one concept per day; writing: turning days into tasks."
+    )
+    days_done: int
+    days_total: int = Field(description="0 until the outline is ready.")
+    draft: RoadmapDraft | None = None
+    error: DraftJobError | None = None
+
+
+class LearnResourceOut(APIModel):
+    kind: str = Field(description="official, opensource, article, video or roadmap.")
+    title: str
+    url: str
+
+
+class LearnTopicOut(APIModel):
+    title: str
+    summary: str
+    resources: list[LearnResourceOut]
+
+
+class DayReferenceOut(APIModel):
+    """roadmap.sh link for the roadmap's subject, plus matching topic notes from the user's
+    own local clone (personal use only; read from this machine, never stored)."""
+
+    roadmap_name: str | None
+    roadmap_url: str | None = Field(description="https://roadmap.sh/<roadmap>, when one fits.")
+    topic: LearnTopicOut | None = Field(description="Only with a local clone configured.")
+    local_content: bool = Field(description="ROADMAP_SH_CONTENT_DIR is set and found.")
+
+
+# ------------------------------------------------------------------ AI output schemas
+# Plain types only: these are the structured-output schemas the model must follow. Every
+# limit is enforced afterwards, when the replies are turned into a RoadmapDraft (drafting.py).
+
+
+class PlannedOutlineLevel(BaseModel):
+    level: Level
+    topics: list[str]
+
+
+class PlannedOutline(BaseModel):
+    """Stage 1: one named concept per day, grouped by level."""
+
+    title: str
+    levels: list[PlannedOutlineLevel]
+
+
+class PlannedTopicList(BaseModel):
+    """Extra concepts for a level the outline left short."""
+
+    topics: list[str]
 
 
 class PlannedTask(BaseModel):
@@ -73,17 +133,14 @@ class PlannedTask(BaseModel):
 
 
 class PlannedDay(BaseModel):
+    topic: str
     tasks: list[PlannedTask]
 
 
-class PlannedLevel(BaseModel):
-    level: Level
+class PlannedDays(BaseModel):
+    """Stage 2: a batch of outline concepts turned into daily tasks."""
+
     days: list[PlannedDay]
-
-
-class PlannedRoadmap(BaseModel):
-    title: str
-    levels: list[PlannedLevel]
 
 
 # ------------------------------------------------------------------ saved roadmaps

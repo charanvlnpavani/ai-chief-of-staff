@@ -37,7 +37,11 @@ class Usage:
     cache_write_tokens: int = 0
 
 
-def cost_micros(model: str, usage: Usage) -> int:
+def cost_micros(model: str, usage: Usage, *, free: bool = False) -> int:
+    """Free models (local Ollama, OpenRouter `:free`) cost nothing. Other models without a
+    known price are costed as Claude Opus 5.5 so the monthly budget still protects you."""
+    if free:
+        return 0
     price = PRICES.get(model)
     if price is None:
         logger.warning("unknown_model_price", extra={"model": model})

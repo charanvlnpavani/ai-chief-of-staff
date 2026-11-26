@@ -13,13 +13,27 @@ from typing import Any, Protocol
 
 import anthropic
 
+from app.ai import connections
 from app.ai.pricing import Usage
+from app.api.deps import CurrentAuth, SessionDep, SettingsDep
 from app.core.config import Settings, get_settings
-from app.core.errors import ServiceUnavailable
 
 logger = logging.getLogger("app.ai.client")
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+# Current-generation Claude models accept adaptive thinking and `effort`; older ones may not.
+ADAPTIVE_MODELS = frozenset({"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"})
+# Server-side refusal fallback ("default" routing) is offered for these, not for Haiku.
+FALLBACK_MODELS = frozenset({"claude-opus-5-5", "claude-sonnet-5-5"})
+
+
+def claude_features(model: str) -> dict[str, Any]:
+    """Request options a given Claude model supports."""
+    params: dict[str, Any] = {}
+    if model in ADAPTIVE_MODELS:
+        params["thinking"] = {"type": "adaptive"}
+    return params
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +48,7 @@ class TurnResult:
     model: str
     usage: Usage
     request_id: str | None = None
+    free: bool = False  # costs nothing (local Ollama, OpenRouter `:free` models)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -62,11 +77,12 @@ class AnthropicChatModel:
     """Claude via the official SDK: adaptive thinking, per-route effort, prompt caching and
     server-side refusal fallback (on by default; set AI_REFUSAL_FALLBACK=false to turn off)."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, api_key: str, model: str | None = None) -> None:
         self._settings = settings
-        self.model_name = settings.ai_model_chat
+        self.model_name = model or settings.ai_model_chat
+        self.free = False
         self._client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key.get_secret_value(),
+            api_key=api_key,
             timeout=120.0,
             max_retries=2,
         )
@@ -84,14 +100,15 @@ class AnthropicChatModel:
             "system": system,
             "tools": tools,
             "messages": messages,
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": self._settings.ai_effort_chat},
+            **claude_features(self.model_name),
             # Automatic caching for the growing conversation tail; the system prompt carries
             # its own explicit breakpoint.
             "cache_control": {"type": "ephemeral"},
         }
         try:
-            if self._settings.ai_refusal_fallback:
+            if self.model_name in ADAPTIVE_MODELS:
+                params["output_config"] = {"effort": self._settings.ai_effort_chat}
+            if self._settings.ai_refusal_fallback and self.model_name in FALLBACK_MODELS:
                 manager: Any = self._client.beta.messages.stream(
                     **params, betas=[FALLBACK_BETA], fallbacks="default"
                 )
@@ -107,7 +124,9 @@ class AnthropicChatModel:
                 "ai_rate_limited", "Claude is busy; try again shortly.", retryable=True
             ) from exc
         except anthropic.AuthenticationError as exc:
-            raise ChatModelError("ai_auth_failed", "The Anthropic API key was rejected.") from exc
+            raise ChatModelError(
+                "ai_auth_failed", "Anthropic rejected your API key. Update it in Settings."
+            ) from exc
         except anthropic.APIStatusError as exc:
             logger.warning("anthropic_status_error", extra={"status": exc.status_code})
             raise ChatModelError(
@@ -137,14 +156,28 @@ class AnthropicChatModel:
         )
 
 
-@lru_cache
-def _anthropic_model() -> AnthropicChatModel:
-    return AnthropicChatModel(get_settings())  # restart the API after rotating the key
+@lru_cache(maxsize=128)
+def model_for_connection(connection: connections.Connection) -> ChatModel:
+    """One client (and connection pool) per user connection; calls run on the user's key."""
+    settings = get_settings()
+    if connection.kind == "anthropic":
+        return AnthropicChatModel(settings, connection.api_key or "", connection.model)
+    from app.ai.openai_compat import OpenAICompatibleChatModel
+
+    return OpenAICompatibleChatModel(
+        provider=connection.provider,
+        api_key=connection.api_key,
+        base_url=connection.base_url or "",
+        model=connection.model,
+        max_tokens=settings.ai_max_tokens,
+        free=connection.free,
+    )
 
 
-def get_chat_model() -> ChatModel:
-    if not get_settings().ai_enabled:
-        raise ServiceUnavailable(
-            "The Chief of Staff needs ANTHROPIC_API_KEY in backend/.env.", code="ai_not_configured"
-        )
-    return _anthropic_model()
+async def get_chat_model(
+    auth: CurrentAuth, session: SessionDep, settings: SettingsDep
+) -> ChatModel:
+    """The signed-in user's model client. Without a usable connection: 403 ai_key_required."""
+    return model_for_connection(
+        await connections.require_connection(session, auth.user.id, settings)
+    )

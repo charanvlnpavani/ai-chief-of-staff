@@ -3,20 +3,25 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 
 from app.ai import catalog as _catalog  # noqa: F401  (registers tools)
-from app.ai import service
+from app.ai import connections, service
 from app.ai.client import ChatModel, get_chat_model
 from app.ai.orchestrator import SessionFactory, TurnRequest, run_turn
 from app.ai.registry import Level, registry
 from app.ai.schemas import (
     AIStatusOut,
+    ConnectionIn,
+    ConnectionsOut,
+    ConnectionUpdate,
     ConversationDetailOut,
     ConversationIn,
     ConversationOut,
     MessageIn,
+    ModelOut,
+    ProviderOut,
     ToolInfoOut,
     UsageOut,
 )
@@ -30,6 +35,7 @@ from app.modules.identity import service as identity_service
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 ChatModelDep = Annotated[ChatModel, Depends(get_chat_model)]
+ListerDep = Annotated[connections.ModelLister, Depends(connections.get_model_lister)]
 SessionFactoryDep = Annotated[SessionFactory, Depends(get_session_factory)]
 CEILING = Level.SUGGEST  # Release 1: read and suggest only
 
@@ -46,14 +52,81 @@ async def ai_status(auth: CurrentAuth, session: SessionDep, settings: SettingsDe
         session, auth.user.id, timezone=auth.user.timezone, today=today
     )
     budget = await _budget_usd(auth, session)
+    active = await connections.resolve_connection(session, auth.user.id, settings)
     return AIStatusOut(
-        enabled=settings.ai_enabled,
-        model=settings.ai_model_chat,
+        enabled=active is not None,
+        key_source=active.source if active else None,
+        provider=active.provider if active else None,
+        model=active.model if active else settings.ai_model_chat,
         consent_granted=await identity_service.has_consent(session, auth.user.id, "ai_processing"),
         month_to_date_usd=round(spent / 1_000_000, 4),
         monthly_budget_usd=budget,
         budget_remaining_usd=round(max(budget - spent / 1_000_000, 0), 4),
     )
+
+
+@router.get("/providers", response_model=list[ProviderOut])
+async def list_providers(auth: CurrentAuth) -> list[ProviderOut]:
+    """AI providers you can connect with your own key (or local Ollama, no key)."""
+    return connections.list_providers()
+
+
+@router.get("/connections", response_model=ConnectionsOut)
+async def get_connections(
+    auth: CurrentAuth, session: SessionDep, settings: SettingsDep
+) -> ConnectionsOut:
+    """Your connected providers and which one is active. Keys are never returned."""
+    return await connections.overview(session, auth.user.id, settings)
+
+
+@router.put("/connections/{provider}", response_model=ConnectionsOut)
+async def connect_provider(
+    provider: str,
+    payload: ConnectionIn,
+    request: Request,
+    auth: CurrentAuth,
+    session: SessionDep,
+    settings: SettingsDep,
+    lister: ListerDep,
+) -> ConnectionsOut:
+    """Check the key (and endpoint) with the provider, then store it encrypted."""
+    limiter.hit(f"ai-connect:{auth.user.id}", limit=10, window_seconds=300)
+    return await connections.connect(
+        session, auth.user.id, provider, payload, settings=settings, lister=lister, request=request
+    )
+
+
+@router.patch("/connections/{provider}", response_model=ConnectionsOut)
+async def change_connection(
+    provider: str,
+    payload: ConnectionUpdate,
+    request: Request,
+    auth: CurrentAuth,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> ConnectionsOut:
+    """Pick another model, or make this provider the active one."""
+    return await connections.change(
+        session, auth.user.id, provider, payload, settings=settings, request=request
+    )
+
+
+@router.delete("/connections/{provider}", response_model=ConnectionsOut)
+async def disconnect_provider(
+    provider: str, request: Request, auth: CurrentAuth, session: SessionDep, settings: SettingsDep
+) -> ConnectionsOut:
+    return await connections.disconnect(
+        session, auth.user.id, provider, settings=settings, request=request
+    )
+
+
+@router.get("/connections/{provider}/models", response_model=list[ModelOut])
+async def provider_models(
+    provider: str, auth: CurrentAuth, session: SessionDep, lister: ListerDep
+) -> list[ModelOut]:
+    """The provider's live model list, fetched with your key (installed models for Ollama)."""
+    limiter.hit(f"ai-models:{auth.user.id}", limit=20, window_seconds=60)
+    return await connections.available_models(session, auth.user.id, provider, lister=lister)
 
 
 @router.get("/tools", response_model=list[ToolInfoOut])

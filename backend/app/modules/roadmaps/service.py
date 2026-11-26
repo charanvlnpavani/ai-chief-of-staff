@@ -1,5 +1,6 @@
 """Roadmaps: drafts (built-in or from Claude), saved plans, daily ticks and progress."""
 
+import re
 import uuid
 from collections import defaultdict
 from datetime import date
@@ -8,20 +9,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import service as ai_service
-from app.core.errors import BadRequest, Conflict, Forbidden, NotFound, ServiceUnavailable
+from app.core.db import SessionFactory
+from app.core.errors import BadRequest, Conflict, Forbidden, NotFound
 from app.core.time import utc_now
 from app.modules.identity import service as identity_service
-from app.modules.roadmaps import planner
+from app.modules.roadmaps import drafting, jobs, planner, roadmapsh
 from app.modules.roadmaps.generator import RoadmapGenerator
-from app.modules.roadmaps.models import LEVELS, Roadmap, RoadmapTask
+from app.modules.roadmaps.models import Roadmap, RoadmapTask
 from app.modules.roadmaps.schemas import (
-    MAX_DAYS,
-    MAX_TASKS_PER_DAY,
+    DayReferenceOut,
     DraftDay,
+    DraftJobOut,
     DraftRequest,
     DraftTask,
+    LearnResourceOut,
+    LearnTopicOut,
     LevelProgressOut,
-    PlannedRoadmap,
     RoadmapDetailOut,
     RoadmapDraft,
     RoadmapOut,
@@ -59,38 +62,6 @@ def _template_draft(template: Template) -> RoadmapDraft:
     )
 
 
-def _clean(text: str, limit: int) -> str:
-    text = " ".join(text.split())
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
-
-
-def _plan_to_draft(subject: str, plan: PlannedRoadmap) -> RoadmapDraft:
-    """Turn Claude's output into a draft, enforcing every limit the API promises."""
-    order = {level: i for i, level in enumerate(LEVELS)}
-    days: list[DraftDay] = []
-    for planned in sorted(plan.levels, key=lambda lv: order[lv.level]):
-        for planned_day in planned.days:
-            tasks = [
-                DraftTask(
-                    title=_clean(t.title, 200),
-                    detail=_clean(t.detail, 1000) or None,
-                    minutes=min(max(t.minutes, 5), 480),
-                )
-                for t in planned_day.tasks[:MAX_TASKS_PER_DAY]
-                if t.title.strip()
-            ]
-            if tasks:
-                days.append(DraftDay(level=planned.level, tasks=tasks))
-    if not days:
-        raise ServiceUnavailable("Claude returned an empty roadmap.", code="ai_bad_output")
-    return RoadmapDraft(
-        subject=subject,
-        title=_clean(plan.title, 120) or subject,
-        source="ai",
-        days=days[:MAX_DAYS],
-    )
-
-
 async def _check_ai_allowed(
     session: AsyncSession, user_id: uuid.UUID, *, timezone: str, today: date
 ) -> None:
@@ -119,40 +90,98 @@ async def draft(
     today: date,
     generator: RoadmapGenerator | None,
 ) -> RoadmapDraft:
-    """A built-in roadmap when one matches; otherwise a Claude draft. Nothing is saved."""
+    """A built-in roadmap when one matches; otherwise an AI draft, within this request.
+
+    The page uses `start_draft_job` instead, because a full AI draft can outlast a request.
+    Nothing is saved.
+    """
+    subject, prepared = await _prepare_draft(
+        session, user_id, data, timezone=timezone, today=today, generator=generator
+    )
+    if isinstance(prepared, RoadmapDraft):
+        return prepared
+    drafter = drafting.Drafter(prepared)
+    try:
+        return await drafter.build(
+            subject=subject, target_days=data.target_days, minutes_per_day=data.minutes_per_day
+        )
+    except drafting.DraftRefused as exc:
+        raise BadRequest(
+            "The AI declined to plan this subject. Try wording it differently.",
+            code="ai_refused",
+        ) from exc
+    finally:
+        # Every call is billed, including the ones made before a refusal or an error.
+        for reply in drafter.replies:
+            await ai_service.record_usage(
+                session,
+                user_id=user_id,
+                route="roadmap",
+                model=reply.model,
+                usage=reply.usage,
+                conversation_id=None,
+                request_id=reply.request_id,
+                free=reply.free,
+            )
+
+
+async def _prepare_draft(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    data: DraftRequest,
+    *,
+    timezone: str,
+    today: date,
+    generator: RoadmapGenerator | None,
+) -> tuple[str, RoadmapDraft | RoadmapGenerator]:
+    """The subject plus a built-in draft when one matches; otherwise the AI gates are checked
+    and the generator to draft with is returned."""
     subject = " ".join(data.subject.split())
     template = find_template(subject) if data.use_template else None
     if template is not None:
-        return _template_draft(template)
+        return subject, _template_draft(template)
     if generator is None:
-        raise ServiceUnavailable(
-            "Roadmaps for new subjects need ANTHROPIC_API_KEY in backend/.env. "
-            "Built-in roadmaps work without it.",
-            code="ai_not_configured",
+        raise Forbidden(
+            "Connect an AI provider in Settings (your own key, or local Ollama for free and "
+            "offline) to plan new subjects. Built-in roadmaps work without it.",
+            code="ai_key_required",
         )
     await _check_ai_allowed(session, user_id, timezone=timezone, today=today)
-    result = await generator.generate(
-        subject=subject, target_days=data.target_days, minutes_per_day=data.minutes_per_day
+    return subject, generator
+
+
+async def start_draft_job(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    data: DraftRequest,
+    *,
+    timezone: str,
+    today: date,
+    generator: RoadmapGenerator | None,
+    session_factory: SessionFactory,
+) -> DraftJobOut:
+    """Start drafting in the background; the gates (consent, budget, key) are checked now."""
+    subject, prepared = await _prepare_draft(
+        session, user_id, data, timezone=timezone, today=today, generator=generator
     )
-    await ai_service.record_usage(
-        session,
+    if isinstance(prepared, RoadmapDraft):
+        return jobs.finished(user_id, subject, prepared).out()
+    return jobs.start(
         user_id=user_id,
-        route="roadmap",
-        model=result.model,
-        usage=result.usage,
-        conversation_id=None,
-        request_id=result.request_id,
-    )
-    if result.refused:
-        raise BadRequest(
-            "Claude declined to plan this subject. Try wording it differently.",
-            code="ai_refused",
-        )
-    if result.plan is None:
-        raise ServiceUnavailable(
-            "Claude's roadmap came back incomplete. Try fewer days.", code="ai_bad_output"
-        )
-    return _plan_to_draft(subject, result.plan)
+        subject=subject,
+        target_days=data.target_days,
+        minutes_per_day=data.minutes_per_day,
+        generator=prepared,
+        session_factory=session_factory,
+    ).out()
+
+
+def get_draft_job(user_id: uuid.UUID, job_id: uuid.UUID) -> DraftJobOut:
+    return jobs.get(user_id, job_id).out()
+
+
+async def cancel_draft_job(user_id: uuid.UUID, job_id: uuid.UUID) -> DraftJobOut:
+    return (await jobs.cancel(user_id, job_id)).out()
 
 
 # ------------------------------------------------------------------ saved roadmaps
@@ -243,6 +272,36 @@ async def get_roadmap(
             can_go_ahead=result.can_go_ahead,
         ),
         tasks=task_out,
+    )
+
+
+async def get_day_reference(
+    session: AsyncSession, user_id: uuid.UUID, roadmap_id: uuid.UUID, day: int, *, content_dir: str
+) -> DayReferenceOut:
+    """roadmap.sh link and, with a local clone, notes for the concept a roadmap day teaches."""
+    roadmap = await _get_roadmap(session, user_id, roadmap_id)
+    tasks = [t for t in (await _load_tasks(session, [roadmap.id]))[roadmap.id] if t.day == day]
+    if not tasks:
+        raise NotFound("This roadmap has no such day.")
+    titles = [
+        re.sub(r"^\s*(understand|practi[sc]e|check yourself)\s*:\s*", "", t.title, flags=re.I)
+        for t in sorted(tasks, key=lambda t: t.position)
+    ]
+    ref = roadmapsh.reference(roadmap.subject, titles, content_dir)
+    topic = ref.topic
+    return DayReferenceOut(
+        roadmap_name=ref.roadmap_name,
+        roadmap_url=ref.roadmap_url,
+        topic=LearnTopicOut(
+            title=topic.title,
+            summary=topic.summary,
+            resources=[
+                LearnResourceOut(kind=r.kind, title=r.title, url=r.url) for r in topic.resources
+            ],
+        )
+        if topic
+        else None,
+        local_content=ref.local_content,
     )
 
 

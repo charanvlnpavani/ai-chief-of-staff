@@ -333,3 +333,23 @@ async def set_consent(
     )
     await session.commit()
     return ConsentOut.model_validate(row)
+
+
+def audit_event(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    action: str,
+    entity_type: str | None = None,
+    details: dict[str, Any] | None = None,
+    request: Request | None = None,
+) -> None:
+    """Public entry point for other modules to add an audit row in their own transaction."""
+    record_audit(
+        session,
+        user_id=user_id,
+        action=action,
+        entity_type=entity_type,
+        details=details,
+        request=request,
+    )
