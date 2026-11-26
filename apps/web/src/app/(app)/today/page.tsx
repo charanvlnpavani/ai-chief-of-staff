@@ -276,9 +276,14 @@ function TodayContent() {
                   <Private>{dashboard.data.brief.headline}</Private>
                 </p>
               </div>
-              <Button asChild>
-                <Link href="/chief?ask=focus">Plan my day</Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline">
+                  <Link href="/library?capture=1">Save to library</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/chief?ask=focus">Plan my day</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
           <div className="grid gap-4 md:grid-cols-2">
