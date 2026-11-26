@@ -7,7 +7,7 @@
 **Status:** Proposed specification — not an implementation report  
 **Version:** 1.0  
 **Primary development environment:** Visual Studio Code + Claude Code  
-**Existing repository:** https://github.com/charanvlnpavani/ai-chief-of-staff  
+**Existing repository:** https://github.com/charanvlnpavani/personal-os  
 **Product:** Responsive web application, with a mobile application planned
 
 > **Vision:** One private, intelligent workspace to plan the day, capture knowledge, review progress, achieve goals, build habits, remember meetings, manage email, and search personal information with trustworthy source references.
