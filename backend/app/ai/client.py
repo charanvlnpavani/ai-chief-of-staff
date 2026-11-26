@@ -171,6 +171,7 @@ def model_for_connection(connection: connections.Connection) -> ChatModel:
         model=connection.model,
         max_tokens=settings.ai_max_tokens,
         free=connection.free,
+        allow_private=settings.private_endpoints_allowed,
     )
 
 

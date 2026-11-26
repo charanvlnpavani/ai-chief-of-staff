@@ -22,6 +22,7 @@ from app.core.schemas import Page
 from app.core.time import local_day_start, utc_now
 from app.modules.identity import service as identity_service
 from app.modules.library import collections, tagging, urls
+from app.modules.library.metadata import Metadata, MetadataFetcher
 from app.modules.library.models import LibraryItem, LibraryItemTag, Tag
 from app.modules.library.schemas import (
     PREVIEW_LENGTH,
@@ -157,6 +158,19 @@ def _apply_link(item: LibraryItem, saved: urls.SavedUrl) -> None:
     item.fetched_at = None
 
 
+def _apply_metadata(item: LibraryItem, meta: Metadata | None, *, replace_title: bool) -> None:
+    item.fetched_at = utc_now()
+    if meta is None:
+        item.metadata_status = "failed"
+        return
+    item.metadata_status = "fetched"
+    if meta.site_name:
+        item.site_name = meta.site_name
+    item.author = meta.author
+    if replace_title and meta.title:
+        item.title = meta.title
+
+
 def _audit(session: AsyncSession, item: LibraryItem, action: str, request: Request | None) -> None:
     # Kind only: titles and links are the user's content and stay out of the audit log.
     identity_service.audit_event(
@@ -173,7 +187,15 @@ def _audit(session: AsyncSession, item: LibraryItem, action: str, request: Reque
 # ------------------------------------------------------------------ capture and read
 
 
-async def create_item(session: AsyncSession, user_id: uuid.UUID, data: ItemIn) -> ItemOut:
+async def create_item(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    data: ItemIn,
+    *,
+    fetcher: MetadataFetcher | None = None,
+) -> ItemOut:
+    """Save an item. A link or video saved without a title gets its page's title (and site
+    and author) when `fetcher` is given, within a few seconds; otherwise its site name."""
     item = LibraryItem(
         user_id=user_id,
         kind=data.kind or "note",  # always set by ItemIn's validator
@@ -192,6 +214,8 @@ async def create_item(session: AsyncSession, user_id: uuid.UUID, data: ItemIn) -
     if data.collection_id is not None:
         item.collection_id = (await collections.get_live(session, user_id, data.collection_id)).id
     item.title = data.title or _default_title(item)
+    if fetcher is not None and item.url_key is not None and not data.title:
+        _apply_metadata(item, await fetcher(item.url or "", item.kind), replace_title=True)
     session.add(item)
     await _guarded(session, user_id, item.url_key, session.flush)  # the item id for its tags
     await tagging.set_item_tags(session, user_id, item.id, data.tags)
@@ -398,6 +422,24 @@ async def _change_url(session: AsyncSession, item: LibraryItem, raw: str | None)
         _apply_link(item, saved)
     else:
         item.url = saved.url  # same page, different spelling; keep fetched details
+
+
+async def refresh_item(
+    session: AsyncSession, user_id: uuid.UUID, item_id: uuid.UUID, fetcher: MetadataFetcher
+) -> ItemOut:
+    """Fetch a link's details again. The title is replaced only while it is still the
+    site-name fallback, so a title the user typed (or edited) is never overwritten."""
+    item = await _get_item(session, user_id, item_id)
+    if item.url_key is None or item.url is None:
+        raise BadRequest("Only links and videos have details to fetch.", code="library_no_link")
+    fallback = urls.parse(item.url).host
+    # Fetch without holding a row lock; the network can take seconds.
+    meta = await fetcher(item.url, item.kind)
+    item = await _get_item(session, user_id, item_id, lock=True)
+    _apply_metadata(item, meta, replace_title=item.title == fallback)
+    item.version += 1
+    await session.commit()
+    return await _out(session, item)
 
 
 # ------------------------------------------------------------------ trash

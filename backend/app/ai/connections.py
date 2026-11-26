@@ -23,7 +23,15 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.models import AICredential
-from app.ai.providers import PROVIDERS, Kind, Provider, check_base_url, get_provider, is_free_model
+from app.ai.providers import (
+    PROVIDERS,
+    Kind,
+    Provider,
+    check_base_url,
+    get_provider,
+    is_free_model,
+    openai_http_client,
+)
 from app.ai.schemas import (
     ActiveAIOut,
     ConnectionIn,
@@ -33,7 +41,7 @@ from app.ai.schemas import (
     ModelOut,
     ProviderOut,
 )
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.crypto import get_keyring
 from app.core.errors import BadRequest, Forbidden, NotFound, ServiceUnavailable
 from app.core.time import utc_now
@@ -80,7 +88,11 @@ async def list_models_live(
             finally:
                 await client.close()
         oai = openai.AsyncOpenAI(
-            api_key=api_key or "not-needed", base_url=base_url, timeout=15.0, max_retries=1
+            api_key=api_key or "not-needed",
+            base_url=base_url,
+            timeout=15.0,
+            max_retries=1,
+            http_client=openai_http_client(allow_private=get_settings().private_endpoints_allowed),
         )
         try:
             ids: list[str] = []

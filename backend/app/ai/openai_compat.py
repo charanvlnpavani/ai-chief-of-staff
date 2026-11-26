@@ -16,6 +16,7 @@ import openai
 
 from app.ai.client import ChatModelError, TextDelta, TurnResult
 from app.ai.pricing import Usage
+from app.ai.providers import openai_http_client
 
 logger = logging.getLogger("app.ai.openai_compat")
 
@@ -184,10 +185,14 @@ class StreamAssembler:
 
 
 def make_client(
-    api_key: str | None, base_url: str, *, timeout: float = 120.0
+    api_key: str | None, base_url: str, *, allow_private: bool, timeout: float = 120.0
 ) -> openai.AsyncOpenAI:
     return openai.AsyncOpenAI(
-        api_key=api_key or PLACEHOLDER_KEY, base_url=base_url, timeout=timeout, max_retries=2
+        api_key=api_key or PLACEHOLDER_KEY,
+        base_url=base_url,
+        timeout=timeout,
+        max_retries=2,
+        http_client=openai_http_client(allow_private=allow_private),
     )
 
 
@@ -230,12 +235,13 @@ class OpenAICompatibleChatModel:
         model: str,
         max_tokens: int,
         free: bool,
+        allow_private: bool = False,
     ) -> None:
         self.provider = provider
         self.model_name = model
         self.free = free
         self._max_tokens = max_tokens
-        self._client = make_client(api_key, base_url)
+        self._client = make_client(api_key, base_url, allow_private=allow_private)
 
     async def stream_turn(
         self,

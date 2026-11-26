@@ -2,12 +2,14 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from app.api.deps import CurrentAuth, SessionDep
 from app.core.pagination import CursorParam, LimitParam
+from app.core.ratelimit import limiter
 from app.core.schemas import Page
 from app.modules.library import collections, service, tagging
+from app.modules.library.metadata import MetadataFetcher, get_metadata_fetcher
 from app.modules.library.schemas import (
     QUERY_MAX,
     TAG_MAX,
@@ -26,6 +28,13 @@ from app.modules.library.schemas import (
 )
 
 router = APIRouter(prefix="/library", tags=["library"])
+
+FetcherDep = Annotated[MetadataFetcher, Depends(get_metadata_fetcher)]
+
+
+def _limit_fetches(user_id: uuid.UUID) -> None:
+    """Saving a link and refreshing details may each make an outbound request."""
+    limiter.hit(f"library-fetch:{user_id}", limit=30, window_seconds=60)
 
 
 @router.get("/items", response_model=Page[ItemSummaryOut])
@@ -76,10 +85,23 @@ async def list_items(
 
 
 @router.post("/items", response_model=ItemOut, status_code=201)
-async def create_item(payload: ItemIn, auth: CurrentAuth, session: SessionDep) -> ItemOut:
-    """Save a note, link, video or excerpt. A link saved before returns 409
+async def create_item(
+    payload: ItemIn, auth: CurrentAuth, session: SessionDep, fetcher: FetcherDep
+) -> ItemOut:
+    """Save a note, link, video or excerpt. A link saved without a title gets its page's
+    title within a few seconds, or its site name. A link saved before returns 409
     `library_duplicate` with `existingId`."""
-    return await service.create_item(session, auth.user.id, payload)
+    _limit_fetches(auth.user.id)
+    return await service.create_item(session, auth.user.id, payload, fetcher=fetcher)
+
+
+@router.post("/items/{item_id}/refresh", response_model=ItemOut)
+async def refresh_item(
+    item_id: uuid.UUID, auth: CurrentAuth, session: SessionDep, fetcher: FetcherDep
+) -> ItemOut:
+    """Fetch a link's title, site and author again."""
+    _limit_fetches(auth.user.id)
+    return await service.refresh_item(session, auth.user.id, item_id, fetcher)
 
 
 @router.get("/counts", response_model=CountsOut)
