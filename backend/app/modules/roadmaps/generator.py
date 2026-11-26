@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.ai.client import ADAPTIVE_MODELS, FALLBACK_BETA, FALLBACK_MODELS, claude_features
 from app.ai.connections import Connection
-from app.ai.openai_compat import map_error
+from app.ai.openai_compat import make_client, map_error
 from app.ai.pricing import Usage
 from app.core.config import Settings, get_settings
 from app.core.errors import ServiceUnavailable
@@ -127,14 +127,20 @@ class OpenAICompatibleRoadmapGenerator:
     instructions otherwise) and validates the reply before anyone sees it.
     """
 
-    def __init__(self, *, api_key: str | None, base_url: str, model: str, free: bool) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str | None,
+        base_url: str,
+        model: str,
+        free: bool,
+        allow_private: bool = False,
+    ) -> None:
         self._model = model
         self._free = free
         # Learned on the first refusal, so a draft's later calls skip the failing attempt.
         self._structured = True
-        self._client = openai.AsyncOpenAI(
-            api_key=api_key or "not-needed", base_url=base_url, timeout=300.0, max_retries=2
-        )
+        self._client = make_client(api_key, base_url, allow_private=allow_private, timeout=300.0)
 
     async def complete[T: BaseModel](
         self, *, system: str, user: str, schema: type[T], max_tokens: int
@@ -203,4 +209,5 @@ def generator_for_connection(connection: Connection) -> RoadmapGenerator:
         base_url=connection.base_url or "",
         model=connection.model,
         free=connection.free,
+        allow_private=get_settings().private_endpoints_allowed,
     )
