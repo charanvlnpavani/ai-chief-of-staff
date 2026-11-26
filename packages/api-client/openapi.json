@@ -2427,7 +2427,7 @@
           "library"
         ],
         "summary": "Create Item",
-        "description": "Save a note, link, video or excerpt. A link saved before returns 409\n`library_duplicate` with `existingId`.",
+        "description": "Save a note, link, video or excerpt. A link saved without a title gets its page's\ntitle within a few seconds, or its site name. A link saved before returns 409\n`library_duplicate` with `existingId`.",
         "operationId": "library_create_item",
         "requestBody": {
           "required": true,
@@ -2441,6 +2441,50 @@
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/items/{item_id}/refresh": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Refresh Item",
+        "description": "Fetch a link's title, site and author again.",
+        "operationId": "library_refresh_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {

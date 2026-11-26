@@ -47,7 +47,7 @@ async def test_a_url_becomes_a_link_titled_by_its_site(owner: AsyncClient) -> No
     assert item["url"] == "https://www.example.com/guide?utm_source=newsletter"
     assert item["title"] == "example.com"
     assert item["siteName"] == "example.com"
-    assert item["metadataStatus"] == "none"
+    assert item["metadataStatus"] == "failed"  # the test fetcher finds nothing
 
 
 async def test_the_server_decides_link_versus_video(owner: AsyncClient) -> None:

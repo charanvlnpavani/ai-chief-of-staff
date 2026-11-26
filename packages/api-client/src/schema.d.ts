@@ -608,10 +608,31 @@ export interface paths {
         put?: never;
         /**
          * Create Item
-         * @description Save a note, link, video or excerpt. A link saved before returns 409
+         * @description Save a note, link, video or excerpt. A link saved without a title gets its page's
+         *     title within a few seconds, or its site name. A link saved before returns 409
          *     `library_duplicate` with `existingId`.
          */
         post: operations["library_create_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/items/{item_id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Item
+         * @description Fetch a link's title, site and author again.
+         */
+        post: operations["library_refresh_item"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5153,6 +5174,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_refresh_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
