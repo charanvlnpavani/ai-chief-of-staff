@@ -6,6 +6,7 @@ from app.modules.habits import models as habits_models
 from app.modules.identity import models as identity_models
 from app.modules.productivity import models as productivity_models
 from app.modules.professional import models as professional_models
+from app.modules.roadmaps import models as roadmaps_models
 
 __all__ = [
     "ai_models",
@@ -14,4 +15,5 @@ __all__ = [
     "identity_models",
     "productivity_models",
     "professional_models",
+    "roadmaps_models",
 ]

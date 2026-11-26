@@ -15,6 +15,7 @@ import {
   Moon,
   Newspaper,
   Repeat,
+  Route,
   Settings,
   Sparkles,
   Sprout,
@@ -48,6 +49,7 @@ const NAV = [
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/habits", label: "Habits", icon: Repeat },
   { href: "/goals", label: "Goals", icon: Target },
+  { href: "/roadmaps", label: "Roadmaps", icon: Route },
   { href: "/work", label: "Work & learning", icon: BookOpen },
 ] as const;
 
@@ -218,7 +220,7 @@ export function AppShell({
 
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
         >
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link

@@ -21,7 +21,7 @@ type ConsentCategory = Schemas["ConsentOut"]["category"];
 const CONSENT_INFO: Record<ConsentCategory, { title: string; description: string; available: boolean }> = {
   ai_processing: {
     title: "Chief of Staff (AI)",
-    description: "Lets Claude read your tasks, habits, goals, learning and practice records when you ask it something.",
+    description: "Lets Claude read your tasks, habits, goals, roadmaps, learning and practice records when you ask it something, and plan roadmaps for subjects you type.",
     available: true,
   },
   ai_health: { title: "AI access to health data", description: "Arrives with the Health manager (Release 2).", available: false },

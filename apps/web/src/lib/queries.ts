@@ -11,6 +11,7 @@ export const qk = {
   habits: ["habits"] as const,
   habitExceptions: ["habit-exceptions"] as const,
   goals: ["goals"] as const,
+  roadmaps: ["roadmaps"] as const,
   professional: ["professional"] as const,
   ai: ["ai"] as const,
   settings: ["settings"] as const,

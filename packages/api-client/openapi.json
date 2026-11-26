@@ -3094,6 +3094,422 @@
         }
       }
     },
+    "/api/v1/roadmaps": {
+      "get": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "List Roadmaps",
+        "operationId": "roadmaps_list_roadmaps",
+        "parameters": [
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoadmapOut"
+                  },
+                  "title": "Response Roadmaps List Roadmaps"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Create Roadmap",
+        "operationId": "roadmaps_create_roadmap",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoadmapDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/templates": {
+      "get": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "List Templates",
+        "operationId": "roadmaps_list_templates",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateOut"
+                  },
+                  "type": "array",
+                  "title": "Response Roadmaps List Templates"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/draft": {
+      "post": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Draft Roadmap",
+        "description": "Preview a roadmap for a subject. Nothing is saved until POST /roadmaps.",
+        "operationId": "roadmaps_draft_roadmap",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDraft"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/{roadmap_id}": {
+      "get": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Get Roadmap",
+        "description": "`ahead=true` also shows the next day once today's day is finished.",
+        "operationId": "roadmaps_get_roadmap",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          },
+          {
+            "name": "ahead",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Ahead"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Update Roadmap",
+        "operationId": "roadmaps_update_roadmap",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoadmapUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Delete Roadmap",
+        "operationId": "roadmaps_delete_roadmap",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roadmaps/{roadmap_id}/tasks/{task_id}/done": {
+      "put": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Complete Task",
+        "operationId": "roadmaps_complete_task",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "ahead",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Ahead"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "roadmaps"
+        ],
+        "summary": "Uncomplete Task",
+        "operationId": "roadmaps_uncomplete_task",
+        "parameters": [
+          {
+            "name": "roadmap_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Roadmap Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "ahead",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Ahead"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadmapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ai/status": {
       "get": {
         "tags": [
@@ -3886,6 +4302,106 @@
         ],
         "title": "DisplayMessage",
         "description": "A user-visible message. Tool-result turns and thinking blocks are not shown."
+      },
+      "DraftDay": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "intermediate",
+              "advanced",
+              "pro"
+            ],
+            "title": "Level"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/DraftTask"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "tasks"
+        ],
+        "title": "DraftDay"
+      },
+      "DraftRequest": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Subject"
+          },
+          "targetDays": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 7.0,
+            "title": "Targetdays",
+            "description": "Used for AI drafts.",
+            "default": 45
+          },
+          "minutesPerDay": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 15.0,
+            "title": "Minutesperday",
+            "description": "Used for AI drafts.",
+            "default": 60
+          },
+          "useTemplate": {
+            "type": "boolean",
+            "title": "Usetemplate",
+            "description": "Use a built-in roadmap when one matches the subject.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject"
+        ],
+        "title": "DraftRequest"
+      },
+      "DraftTask": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "minutes": {
+            "type": "integer",
+            "maximum": 480.0,
+            "minimum": 5.0,
+            "title": "Minutes",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "DraftTask"
       },
       "EntryOut": {
         "properties": {
@@ -5966,6 +6482,35 @@
         ],
         "title": "LearningWidget"
       },
+      "LevelProgressOut": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "intermediate",
+              "advanced",
+              "pro"
+            ],
+            "title": "Level"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "done",
+          "total"
+        ],
+        "title": "LevelProgressOut"
+      },
       "MeOut": {
         "properties": {
           "user": {
@@ -6759,6 +7304,431 @@
           "totalSolved"
         ],
         "title": "ProblemsWidget"
+      },
+      "RoadmapDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "template",
+              "ai"
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "completed",
+              "archived"
+            ],
+            "title": "Status"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/RoadmapProgressOut"
+          },
+          "today": {
+            "$ref": "#/components/schemas/TodayOut"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/RoadmapTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject",
+          "title",
+          "source",
+          "status",
+          "startDate",
+          "completedAt",
+          "version",
+          "createdAt",
+          "progress",
+          "today",
+          "tasks"
+        ],
+        "title": "RoadmapDetailOut"
+      },
+      "RoadmapDraft": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Subject"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "template",
+              "ai"
+            ],
+            "title": "Source"
+          },
+          "templateKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Templatekey"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDay"
+            },
+            "type": "array",
+            "maxItems": 365,
+            "minItems": 1,
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "title",
+          "source",
+          "days"
+        ],
+        "title": "RoadmapDraft",
+        "description": "A plan that is not saved yet. Send it back to POST /roadmaps to keep it."
+      },
+      "RoadmapOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "template",
+              "ai"
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "completed",
+              "archived"
+            ],
+            "title": "Status"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/RoadmapProgressOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject",
+          "title",
+          "source",
+          "status",
+          "startDate",
+          "completedAt",
+          "version",
+          "createdAt",
+          "progress"
+        ],
+        "title": "RoadmapOut"
+      },
+      "RoadmapProgressOut": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent",
+            "description": "0..1, from tasks ticked; never estimated by AI."
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelProgressOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "currentDay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currentday"
+          },
+          "currentLevel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "basic",
+                  "intermediate",
+                  "advanced",
+                  "pro"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currentlevel"
+          },
+          "totalDays": {
+            "type": "integer",
+            "title": "Totaldays"
+          },
+          "streakDays": {
+            "type": "integer",
+            "title": "Streakdays"
+          },
+          "projectedFinish": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectedfinish",
+            "description": "Moves out when a day is skipped."
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total",
+          "percent",
+          "levels",
+          "currentDay",
+          "currentLevel",
+          "totalDays",
+          "streakDays",
+          "projectedFinish"
+        ],
+        "title": "RoadmapProgressOut"
+      },
+      "RoadmapTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "intermediate",
+              "advanced",
+              "pro"
+            ],
+            "title": "Level"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "completedOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "day",
+          "position",
+          "level",
+          "title",
+          "detail",
+          "minutes",
+          "completedOn"
+        ],
+        "title": "RoadmapTaskOut"
+      },
+      "RoadmapUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "paused",
+                  "completed",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "title": "RoadmapUpdate"
       },
       "ScheduleChangeIn": {
         "properties": {
@@ -7858,6 +8828,83 @@
           "top"
         ],
         "title": "TasksWidget"
+      },
+      "TemplateOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "subject",
+          "title",
+          "days"
+        ],
+        "title": "TemplateOut"
+      },
+      "TodayOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Roadmap day numbers shown today."
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/RoadmapTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "description": "Today's day is finished."
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished",
+            "description": "The whole roadmap is finished."
+          },
+          "canGoAhead": {
+            "type": "boolean",
+            "title": "Cangoahead",
+            "description": "The next day can be started early."
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "days",
+          "tasks",
+          "complete",
+          "finished",
+          "canGoAhead"
+        ],
+        "title": "TodayOut"
       },
       "ToolCallOut": {
         "properties": {

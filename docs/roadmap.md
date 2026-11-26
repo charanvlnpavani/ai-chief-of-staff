@@ -18,7 +18,7 @@ the owner), **Planned**.
 | 6 | Meeting Memory Assistant | Planned | — |
 | 7 | Email Command Center | Planned | — |
 | 8 | Personal Knowledge Search | Planned | — |
-| — | AI Chief of Staff (read-only) | Done; live calls blocked | `/chief`: 10 read tools, consent, monthly budget, usage ledger, encrypted history. Real Claude calls need `ANTHROPIC_API_KEY`. |
+| — | AI Chief of Staff (read-only) | Done; live calls blocked | `/chief`: 11 read tools, consent, monthly budget, usage ledger, encrypted history. Real Claude calls need `ANTHROPIC_API_KEY`. |
 
 ## Milestones
 
@@ -40,7 +40,7 @@ the owner), **Planned**.
 | Domain | Status | Notes |
 |---|---|---|
 | Professional Work / Career Growth | Partial | `/work`: learning time vs a daily goal, DSA log with spaced review, skill matrix. Built ahead of plan. |
-| Zero-to-Pro Developer Skill Roadmap | Planned | Link to roadmap.sh; do not copy its content into this public repo. |
+| Zero-to-Pro Developer Skill Roadmap | Partial | `/roadmaps`: type a subject, get a basic → intermediate → advanced → pro plan split into days; tick today's tasks; progress, per-level progress, streak and a finish date that slides when a day is skipped. Built-in DSA roadmap (51 days, original content; nothing copied from roadmap.sh); other subjects drafted by Claude (needs `ANTHROPIC_API_KEY`, consent and budget, costed in the ledger). Read-only `get_roadmaps` AI tool. Not yet: linking roadmap days to learning time, skills or goals; editing a saved roadmap. |
 | Finance | Planned | Manual entry first; field encryption |
 | Health | Planned | Manual entry first |
 | Jobs | Planned | Application pipeline |
