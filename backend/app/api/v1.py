@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.ai.router import router as ai_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.goals.router import router as goals_router
 from app.modules.habits.router import exceptions_router as habit_exceptions_router
 from app.modules.habits.router import router as habits_router
 from app.modules.identity.router import auth_router, users_router
@@ -19,6 +20,7 @@ for module_router in (
     lists_router,
     habits_router,
     habit_exceptions_router,
+    goals_router,
     professional_router,
     ai_router,
 ):

@@ -4,9 +4,9 @@ One private, intelligent workspace to plan the day, capture knowledge, review pr
 goals, build habits, remember meetings, manage email, and search personal information with
 trustworthy source references. The full blueprint is in [docs/vision.md](docs/vision.md).
 
-> **Status: in development.** Working today: sign-in, Tasks, Habits, the Today dashboard, a
+> **Status: in development.** Working today: sign-in, Tasks, Habits, Goals, the Today dashboard, a
 > read-only AI Chief of Staff, and Work & learning (learning time vs a daily goal, DSA practice
-> with spaced review, skills). Next up: Goals. Second Brain, Knowledge Search, Daily Review,
+> with spaced review, skills). Next up: finishing M2 (calendar view, reminders, daily briefing). Second Brain, Knowledge Search, Daily Review,
 > Meetings and Email follow, one milestone at a time. See [docs/roadmap.md](docs/roadmap.md).
 
 | Layer | Stack |
@@ -65,7 +65,7 @@ Also set a spend limit in the Claude Console.
 apps/web/              Next.js app (pages in src/app/(app)/…)
 packages/api-client/   OpenAPI schema + generated TypeScript types + fetch client
 backend/app/core/      config, db, errors, security, crypto, logging, middleware
-backend/app/modules/   identity · productivity (tasks) · habits · professional · dashboard
+backend/app/modules/   identity · productivity (tasks) · habits · goals · professional · dashboard
 backend/app/ai/        Chief of Staff: client, tool registry, orchestrator, ledger
 backend/migrations/    Alembic migrations (hand-reviewed)
 backend/tests/         pytest suite (real Postgres, rolled back per test)

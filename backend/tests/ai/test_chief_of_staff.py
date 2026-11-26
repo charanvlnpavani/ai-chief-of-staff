@@ -271,7 +271,7 @@ async def test_status_and_tool_catalog(owner: AsyncClient) -> None:
     assert status["enabled"] is False  # no ANTHROPIC_API_KEY in tests
     assert status["consentGranted"] is False
     tools = (await owner.get("/api/v1/ai/tools")).json()
-    assert len(tools) == 9
+    assert len(tools) == 10
     assert {t["level"] for t in tools} == {1}
     assert not any(t["available"] for t in tools)
     await owner.put("/api/v1/users/me/consents/ai_processing", json={"granted": True})
