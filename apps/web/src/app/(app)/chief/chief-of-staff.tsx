@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Loader2, MessageSquarePlus, Send, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -57,13 +58,13 @@ function ConsentCard() {
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="size-5 text-primary" aria-hidden /> Before you start
         </CardTitle>
-        <CardDescription>The Chief of Staff uses Claude, an AI model made by Anthropic.</CardDescription>
+        <CardDescription>The Chief of Staff uses the AI provider you connect in Settings (for example Claude by Anthropic, OpenAI, Google Gemini, or a local model with Ollama).</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        <p>When you ask a question, Personal OS sends Anthropic:</p>
+        <p>When you ask a question, Personal OS sends that provider (with local Ollama, nothing leaves your computer):</p>
         <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
           <li>your message, the date and your time zone;</li>
-          <li>only the records Claude looks up through read-only tools: tasks, habits, goals (titles, targets, progress), learning roadmaps, learning sessions, practice problems and skills.</li>
+          <li>only the records the AI looks up through read-only tools: tasks, habits, goals (titles, targets, progress), learning roadmaps, learning sessions, practice problems and skills.</li>
           <li>when you plan a roadmap for a new subject: the subject you typed and how much time you want to spend.</li>
         </ul>
         <p>It never sends your email address, passwords or session tokens, and it cannot change, delete or send anything.</p>
@@ -215,10 +216,15 @@ export function ChiefOfStaff() {
       {!ai.enabled ? (
         <Alert className="mb-4">
           <KeyRound className="size-4" aria-hidden />
-          <AlertTitle>Add your Anthropic API key to turn this on</AlertTitle>
+          <AlertTitle>Connect an AI provider to turn this on</AlertTitle>
           <AlertDescription>
-            Put ANTHROPIC_API_KEY in backend/.env and restart the API. Set a monthly spend limit in the Claude Console as well;
-            your in-app budget is ${ai.monthlyBudgetUsd.toFixed(0)}/month. Model: {ai.model}.
+            <span>
+              The Chief of Staff runs on your own AI connection: Claude, ChatGPT models, Gemini, OpenRouter, Groq, or a free local model with Ollama.{" "}
+              <Link href="/settings" className="font-medium underline underline-offset-2">
+                Connect one in Settings
+              </Link>
+              . Set a spend limit with your provider as well; your in-app budget is ${ai.monthlyBudgetUsd.toFixed(0)}/month.
+            </span>
           </AlertDescription>
         </Alert>
       ) : null}

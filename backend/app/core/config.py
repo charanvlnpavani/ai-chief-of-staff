@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
+AIKeyMode = Literal["user", "server"]
 
 
 class Settings(BaseSettings):
@@ -42,7 +43,14 @@ class Settings(BaseSettings):
     default_currency: str = "INR"
 
     # --- AI Chief of Staff --------------------------------------------------
+    ai_key_mode: AIKeyMode = "user"
+    """`user`: every person adds their own Anthropic key in Settings (required in production).
+    `server`: a single-user self-host may use ANTHROPIC_API_KEY when no personal key is set."""
     anthropic_api_key: SecretStr = SecretStr("")
+    ai_allow_private_endpoints: bool | None = None
+    """Let users point a provider at localhost or a private network (e.g. Ollama on this
+    machine). Defaults to on in development, off in production (it would let anyone make the
+    server call internal addresses). Set true only for a single-user self-host."""
     ai_model_chat: str = "claude-opus-5-5"
     ai_effort_chat: Effort = "medium"
     ai_max_tokens: int = 16000
@@ -50,6 +58,12 @@ class Settings(BaseSettings):
     ai_default_monthly_budget_usd: float = 25.0
     ai_refusal_fallback: bool = True
     ai_conversation_retention_days: int = 90
+
+    # --- learning references --------------------------------------------------
+    roadmap_sh_content_dir: str = ""
+    """Optional path to a local clone of github.com/nilbuild/developer-roadmap. Its licence
+    allows personal use only, so the content is read from this machine at request time and
+    shown only to its user: never stored, committed, published or sent to an AI provider."""
 
     @field_validator("allowed_login_emails", mode="before")
     @classmethod
@@ -69,6 +83,10 @@ class Settings(BaseSettings):
                 raise ValueError("ENCRYPTION_KEYS is required in production")
             if self.dev_login_enabled:
                 raise ValueError("DEV_LOGIN_ENABLED must be false in production")
+            if self.ai_key_mode != "user":
+                raise ValueError(
+                    "AI_KEY_MODE must be 'user' in production: every user brings their own key"
+                )
         return self
 
     @property
@@ -93,8 +111,16 @@ class Settings(BaseSettings):
         return self.dev_login_enabled and not self.is_production
 
     @property
-    def ai_enabled(self) -> bool:
-        return bool(self.anthropic_api_key.get_secret_value())
+    def private_endpoints_allowed(self) -> bool:
+        if self.ai_allow_private_endpoints is not None:
+            return self.ai_allow_private_endpoints
+        return not self.is_production
+
+    @property
+    def server_api_key(self) -> str | None:
+        """The shared ANTHROPIC_API_KEY, only when AI_KEY_MODE allows sharing it."""
+        key = self.anthropic_api_key.get_secret_value()
+        return key if key and self.ai_key_mode == "server" else None
 
 
 @lru_cache

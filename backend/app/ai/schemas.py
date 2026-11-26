@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 from app.core.schemas import APIModel
 
@@ -50,8 +50,71 @@ class ToolInfoOut(APIModel):
     available: bool
 
 
+ProviderIdOut = Literal["anthropic", "openai", "gemini", "openrouter", "groq", "ollama", "custom"]
+
+
+class ProviderOut(APIModel):
+    id: ProviderIdOut
+    name: str
+    kind: Literal["anthropic", "openai_compatible"]
+    needs_key: bool
+    custom_url: bool = Field(description="You can (or must) enter the endpoint URL.")
+    default_base_url: str | None
+    key_url: str | None = Field(description="Where to create an API key.")
+    free_note: str | None
+    default_model: str | None
+
+
+class ConnectionIn(APIModel):
+    api_key: SecretStr | None = Field(
+        default=None, description="Your API key. Never returned. Omit to keep the stored one."
+    )
+    base_url: str | None = Field(default=None, max_length=300)
+    model: str | None = Field(default=None, max_length=120)
+    activate: bool = Field(default=True, description="Use this provider for AI from now on.")
+
+
+class ConnectionUpdate(APIModel):
+    model: str | None = Field(default=None, max_length=120)
+    active: bool | None = None
+
+
+class ConnectionOut(APIModel):
+    provider: ProviderIdOut
+    provider_name: str
+    hint: str | None = Field(description="Last four characters of your key, e.g. …wxyz.")
+    base_url: str | None
+    model: str | None
+    active: bool
+    free: bool
+    verified_at: datetime
+
+
+class ActiveAIOut(APIModel):
+    provider: ProviderIdOut
+    provider_name: str
+    model: str
+    source: Literal["user", "server"]
+    free: bool
+
+
+class ConnectionsOut(APIModel):
+    mode: Literal["user", "server"] = Field(
+        description="`user`: everyone brings their own key. `server`: a shared key may be used."
+    )
+    active: ActiveAIOut | None
+    connections: list[ConnectionOut]
+
+
+class ModelOut(APIModel):
+    id: str
+    free: bool
+
+
 class AIStatusOut(APIModel):
-    enabled: bool
+    enabled: bool = Field(description="An AI connection is available for you.")
+    key_source: Literal["user", "server"] | None = None
+    provider: str | None = None
     model: str
     consent_granted: bool
     month_to_date_usd: float

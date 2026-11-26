@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -192,9 +193,15 @@ async def test_injected_instructions_cannot_reach_unregistered_tools(
     assert len(tasks) == 1  # nothing was deleted
 
 
-async def test_invalid_tool_input_is_rejected_before_running(
+async def test_malformed_optional_arguments_never_reach_the_tool(
     app: FastAPI, owner: AsyncClient, db_session: AsyncSession
 ) -> None:
+    # A bad view and an over-limit limit are dropped, so the tool runs with its safe
+    # defaults instead of failing (a failed lookup tempts small models to invent data).
+    await owner.post(
+        "/api/v1/tasks",
+        json={"title": "Due today", "dueOn": local_today("Asia/Kolkata").isoformat()},
+    )
     model = use_model(
         app,
         FakeChatModel(
@@ -211,8 +218,50 @@ async def test_invalid_tool_input_is_rejected_before_running(
     await send(owner, conversation, "list")
     execution = await db_session.scalar(select(AIToolExecution))
     assert execution is not None
-    assert (execution.decision, execution.error_code) == ("invalid", "invalid_input")
-    assert model.calls[1]["messages"][-1]["content"][0]["is_error"] is True
+    assert (execution.decision, execution.status) == ("allowed", "ok")
+    result = model.calls[1]["messages"][-1]["content"][0]
+    assert not result.get("is_error")
+    assert "Due today" in result["content"]  # default view "today"
+
+
+def test_forgiving_input_still_rejects_a_bad_required_argument() -> None:
+    from pydantic import BaseModel, Field
+
+    from app.ai.orchestrator import forgiving_input
+
+    class Lookup(BaseModel):
+        query: str = Field(min_length=2)
+        limit: int = Field(default=10, le=50)
+
+    assert forgiving_input(Lookup, {"query": "rust", "limit": 500, "style": "x"}) == {
+        "query": "rust"
+    }
+    assert forgiving_input(Lookup, "not an object") == {}
+    kept = forgiving_input(Lookup, {"query": "x", "limit": 5})
+    assert kept == {"query": "x", "limit": 5}  # required field kept, so validation fails
+    with pytest.raises(ValidationError):
+        Lookup.model_validate(kept)
+
+
+async def test_invented_arguments_on_a_no_parameter_tool_are_ignored(
+    app: FastAPI, owner: AsyncClient, db_session: AsyncSession
+) -> None:
+    # Small local models often add arguments a tool does not have, e.g. {"format": "short"}.
+    model = use_model(
+        app,
+        FakeChatModel(
+            [
+                turn([tool_use("g", "get_goals", {"format": "short"})], stop="tool_use"),
+                turn([text("ok")]),
+            ]
+        ),
+    )
+    conversation = await new_conversation(owner)
+    await send(owner, conversation, "goals?")
+    execution = await db_session.scalar(select(AIToolExecution))
+    assert execution is not None
+    assert (execution.decision, execution.status) == ("allowed", "ok")
+    assert model.calls[1]["messages"][-1]["content"][0].get("is_error") is not True
 
 
 async def test_monthly_budget_blocks_new_requests(app: FastAPI, owner: AsyncClient) -> None:
@@ -278,13 +327,13 @@ async def test_status_and_tool_catalog(owner: AsyncClient) -> None:
     assert all(t["available"] for t in (await owner.get("/api/v1/ai/tools")).json())
 
 
-async def test_missing_api_key_returns_503(owner: AsyncClient) -> None:
+async def test_missing_personal_api_key_is_required(owner: AsyncClient) -> None:
     conversation = await new_conversation(owner)
     response = await owner.post(
         f"/api/v1/ai/conversations/{conversation}/messages", json={"content": "hi"}
     )
-    assert response.status_code == 503
-    assert response.json()["code"] == "ai_not_configured"
+    assert response.status_code == 403
+    assert response.json()["code"] == "ai_key_required"
 
 
 def test_cost_calculation() -> None:

@@ -29,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
+      {/* Browser extensions (for example ColorZilla's cz-shortcut-listen) add attributes to
+          <body> before React loads; ignore those attribute differences. Applies to <body> only. */}
+      <body className="min-h-full" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

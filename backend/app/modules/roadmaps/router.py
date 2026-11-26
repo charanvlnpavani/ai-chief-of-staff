@@ -1,15 +1,19 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Path, Response
 
-from app.api.deps import CurrentAuth, SessionDep
-from app.core.errors import AppError
+from app.ai import connections
+from app.api.deps import CurrentAuth, SessionDep, SettingsDep
+from app.core.db import SessionFactory, get_session_factory
 from app.core.ratelimit import limiter
 from app.core.time import local_today
 from app.modules.roadmaps import service
-from app.modules.roadmaps.generator import RoadmapGenerator, get_roadmap_generator
+from app.modules.roadmaps.generator import RoadmapGenerator, generator_for_connection
 from app.modules.roadmaps.schemas import (
+    MAX_DAYS,
+    DayReferenceOut,
+    DraftJobOut,
     DraftRequest,
     RoadmapDetailOut,
     RoadmapDraft,
@@ -21,12 +25,12 @@ from app.modules.roadmaps.schemas import (
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
 
-def _optional_generator() -> RoadmapGenerator | None:
-    """None when Claude is not configured, so built-in roadmaps still work."""
-    try:
-        return get_roadmap_generator()
-    except AppError:
-        return None
+async def _optional_generator(
+    auth: CurrentAuth, session: SessionDep, settings: SettingsDep
+) -> RoadmapGenerator | None:
+    """The user's Claude generator, or None without a key, so built-in roadmaps still work."""
+    connection = await connections.resolve_connection(session, auth.user.id, settings)
+    return generator_for_connection(connection) if connection else None
 
 
 GeneratorDep = Annotated[RoadmapGenerator | None, Depends(_optional_generator)]
@@ -65,6 +69,41 @@ async def draft_roadmap(
     )
 
 
+@router.post("/draft-jobs", response_model=DraftJobOut, status_code=202)
+async def start_draft_job(
+    payload: DraftRequest,
+    auth: CurrentAuth,
+    session: SessionDep,
+    generator: GeneratorDep,
+    session_factory: Annotated[SessionFactory, Depends(get_session_factory)],
+) -> DraftJobOut:
+    """Start drafting a roadmap in the background; poll GET /draft-jobs/{id} for progress.
+
+    A built-in roadmap comes back finished at once. Nothing is saved until POST /roadmaps.
+    """
+    limiter.hit(f"roadmap-draft:{auth.user.id}", limit=5, window_seconds=60)
+    return await service.start_draft_job(
+        session,
+        auth.user.id,
+        payload,
+        timezone=auth.user.timezone,
+        today=local_today(auth.user.timezone),
+        generator=generator,
+        session_factory=session_factory,
+    )
+
+
+@router.get("/draft-jobs/{job_id}", response_model=DraftJobOut)
+async def get_draft_job(job_id: uuid.UUID, auth: CurrentAuth) -> DraftJobOut:
+    return service.get_draft_job(auth.user.id, job_id)
+
+
+@router.delete("/draft-jobs/{job_id}", response_model=DraftJobOut)
+async def cancel_draft_job(job_id: uuid.UUID, auth: CurrentAuth) -> DraftJobOut:
+    """Stop a draft that is still being written. Calls already answered are still billed."""
+    return await service.cancel_draft_job(auth.user.id, job_id)
+
+
 @router.post("", response_model=RoadmapDetailOut, status_code=201)
 async def create_roadmap(
     payload: RoadmapDraft, auth: CurrentAuth, session: SessionDep
@@ -81,6 +120,26 @@ async def get_roadmap(
     """`ahead=true` also shows the next day once today's day is finished."""
     return await service.get_roadmap(
         session, auth.user.id, roadmap_id, today=local_today(auth.user.timezone), ahead=ahead
+    )
+
+
+@router.get("/{roadmap_id}/days/{day}/reference", response_model=DayReferenceOut)
+async def get_day_reference(
+    roadmap_id: uuid.UUID,
+    day: Annotated[int, Path(ge=1, le=MAX_DAYS)],
+    auth: CurrentAuth,
+    session: SessionDep,
+    settings: SettingsDep,
+    response: Response,
+) -> DayReferenceOut:
+    """A roadmap.sh link, plus notes from the local clone for the concept this day teaches.
+
+    The notes come from this machine only (personal use under the roadmap.sh licence), so the
+    response must not be cached by anything between the API and the browser.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    return await service.get_day_reference(
+        session, auth.user.id, roadmap_id, day, content_dir=settings.roadmap_sh_content_dir
     )
 
 

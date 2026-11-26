@@ -18,7 +18,7 @@ the owner), **Planned**.
 | 6 | Meeting Memory Assistant | Planned | — |
 | 7 | Email Command Center | Planned | — |
 | 8 | Personal Knowledge Search | Planned | — |
-| — | AI Chief of Staff (read-only) | Done; live calls blocked | `/chief`: 11 read tools, consent, monthly budget, usage ledger, encrypted history. Real Claude calls need `ANTHROPIC_API_KEY`. |
+| — | AI Chief of Staff (read-only) | Done; live calls need a key | `/chief`: 11 read tools, consent, monthly budget, usage ledger, encrypted history. Any provider, bring your own key: Claude (native), OpenAI, Gemini, OpenRouter (incl. free models), Groq, local Ollama (free, offline) or any OpenAI-compatible endpoint, with a model picked from the provider's live list. Keys verified, encrypted at rest, only the last 4 characters shown; free models cost $0 in the budget; private endpoint URLs blocked in production. `AI_KEY_MODE=user` enforced in production. |
 
 ## Milestones
 
@@ -40,7 +40,7 @@ the owner), **Planned**.
 | Domain | Status | Notes |
 |---|---|---|
 | Professional Work / Career Growth | Partial | `/work`: learning time vs a daily goal, DSA log with spaced review, skill matrix. Built ahead of plan. |
-| Zero-to-Pro Developer Skill Roadmap | Partial | `/roadmaps`: type a subject, get a basic → intermediate → advanced → pro plan split into days; tick today's tasks; progress, per-level progress, streak and a finish date that slides when a day is skipped. Built-in DSA roadmap (51 days, original content; nothing copied from roadmap.sh); other subjects drafted by Claude (needs `ANTHROPIC_API_KEY`, consent and budget, costed in the ledger). Read-only `get_roadmaps` AI tool. Not yet: linking roadmap days to learning time, skills or goals; editing a saved roadmap. |
+| Zero-to-Pro Developer Skill Roadmap | Partial | `/roadmaps`: type a subject, get a basic → intermediate → advanced → pro plan split into days; tick today's tasks; progress, per-level progress, streak and a finish date that slides when a day is skipped. Built-in DSA roadmap (51 days, original content; nothing copied from roadmap.sh); any other subject drafted by the user's own AI connection (consent and budget apply; every call costed in the ledger) in two stages: an outline with one concept per day split 30/30/25/15 % across the levels, then each day expanded into Understand / Practise / Check yourself tasks. Day counts are enforced in code (short levels topped up, skipped days retried, then filled), so even small local models give the full plan. Drafts run as a background job with live progress (`/roadmaps/draft-jobs`), kept in memory in the API process until the background worker exists (M6). Read-only `get_roadmaps` AI tool. Each roadmap links to the matching roadmap on roadmap.sh; with `ROADMAP_SH_CONTENT_DIR` pointing at a local clone, each day shows "Learn more" notes and resources for its concept (personal use only, read at request time, never stored or committed). Not yet: linking roadmap days to learning time, skills or goals; editing a saved roadmap. |
 | Finance | Planned | Manual entry first; field encryption |
 | Health | Planned | Manual entry first |
 | Jobs | Planned | Application pipeline |

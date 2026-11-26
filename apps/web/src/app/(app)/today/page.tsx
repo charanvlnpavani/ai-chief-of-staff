@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, CheckSquare, Flame, Repeat, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { toast } from "sonner";
 
 import { Private } from "@/components/privacy";
@@ -246,7 +247,7 @@ function Practice({ data }: { data: Dashboard }) {
   );
 }
 
-export default function TodayPage() {
+function TodayContent() {
   const me = useMe();
   const dashboard = useQuery({
     queryKey: qk.dashboard,
@@ -289,5 +290,14 @@ export default function TodayPage() {
         </div>
       )}
     </>
+  );
+}
+
+// The greeting depends on the current hour, so it is computed on each visit, not at build time.
+export default function TodayPage() {
+  return (
+    <Suspense fallback={<LoadingRows rows={5} />}>
+      <TodayContent />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckSquare, Pencil, Plus, Repeat, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/states";
@@ -155,7 +155,7 @@ function EditTaskDialog({ task, onClose }: { task: Task; onClose: () => void }) 
   );
 }
 
-export default function TasksPage() {
+function TasksContent() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<View>("today");
   const [search, setSearch] = useState("");
@@ -329,5 +329,14 @@ export default function TasksPage() {
       )}
       {editing ? <EditTaskDialog task={editing} onClose={() => setEditing(null)} /> : null}
     </>
+  );
+}
+
+// "Today" is read on each visit, so the page streams in after the static shell.
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<LoadingRows rows={5} />}>
+      <TasksContent />
+    </Suspense>
   );
 }

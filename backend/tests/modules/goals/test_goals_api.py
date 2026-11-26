@@ -307,6 +307,12 @@ async def test_get_goals_tool_output(owner: AsyncClient, db_session: AsyncSessio
     assert books["current_value"] == 6.0
     assert books["target_value"] == 24.0
     assert books["days_left"] == 10
-    assert ship["milestones"] == "0/1"
-    assert ship["start_value"] is None
-    assert ship["target_value"] is None
+    # A finished sentence the model can quote, so small models do not mix up raw fields.
+    assert books["summary"].startswith(f"{books['title']}: 6 of 24")
+    assert "(25%)" in books["summary"]
+    assert "10 days left" in books["summary"]
+    assert "milestones_done" not in books  # only the fields that apply to a numeric goal
+    assert (ship["milestones_done"], ship["milestones_total"]) == (0, 1)
+    assert ship["summary"].startswith("Ship app: 0 of 1 milestones done")
+    assert "target_value" not in ship
+    assert "start_value" not in ship

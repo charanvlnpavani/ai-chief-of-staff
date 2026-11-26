@@ -825,6 +825,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roadmaps/draft-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Draft Job
+         * @description Start drafting a roadmap in the background; poll GET /draft-jobs/{id} for progress.
+         *
+         *     A built-in roadmap comes back finished at once. Nothing is saved until POST /roadmaps.
+         */
+        post: operations["roadmaps_start_draft_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/draft-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Draft Job */
+        get: operations["roadmaps_get_draft_job"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Draft Job
+         * @description Stop a draft that is still being written. Calls already answered are still billed.
+         */
+        delete: operations["roadmaps_cancel_draft_job"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/roadmaps/{roadmap_id}": {
         parameters: {
             query?: never;
@@ -845,6 +888,29 @@ export interface paths {
         head?: never;
         /** Update Roadmap */
         patch: operations["roadmaps_update_roadmap"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/days/{day}/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Day Reference
+         * @description A roadmap.sh link, plus notes from the local clone for the concept this day teaches.
+         *
+         *     The notes come from this machine only (personal use under the roadmap.sh licence), so the
+         *     response must not be cached by anything between the API and the browser.
+         */
+        get: operations["roadmaps_get_day_reference"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/roadmaps/{roadmap_id}/tasks/{task_id}/done": {
@@ -874,6 +940,91 @@ export interface paths {
         };
         /** Ai Status */
         get: operations["ai_ai_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Providers
+         * @description AI providers you can connect with your own key (or local Ollama, no key).
+         */
+        get: operations["ai_list_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Connections
+         * @description Your connected providers and which one is active. Keys are never returned.
+         */
+        get: operations["ai_get_connections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/connections/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Connect Provider
+         * @description Check the key (and endpoint) with the provider, then store it encrypted.
+         */
+        put: operations["ai_connect_provider"];
+        post?: never;
+        /** Disconnect Provider */
+        delete: operations["ai_disconnect_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Change Connection
+         * @description Pick another model, or make this provider the active one.
+         */
+        patch: operations["ai_change_connection"];
+        trace?: never;
+    };
+    "/api/v1/ai/connections/{provider}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Provider Models
+         * @description The provider's live model list, fetched with your key (installed models for Ollama).
+         */
+        get: operations["ai_provider_models"];
         put?: never;
         post?: never;
         delete?: never;
@@ -988,8 +1139,15 @@ export interface components {
         };
         /** AIStatusOut */
         AIStatusOut: {
-            /** Enabled */
+            /**
+             * Enabled
+             * @description An AI connection is available for you.
+             */
             enabled: boolean;
+            /** Keysource */
+            keySource?: ("user" | "server") | null;
+            /** Provider */
+            provider?: string | null;
             /** Model */
             model: string;
             /** Consentgranted */
@@ -1000,6 +1158,25 @@ export interface components {
             monthlyBudgetUsd: number;
             /** Budgetremainingusd */
             budgetRemainingUsd: number;
+        };
+        /** ActiveAIOut */
+        ActiveAIOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "anthropic" | "openai" | "gemini" | "openrouter" | "groq" | "ollama" | "custom";
+            /** Providername */
+            providerName: string;
+            /** Model */
+            model: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user" | "server";
+            /** Free */
+            free: boolean;
         };
         /** AttemptIn */
         AttemptIn: {
@@ -1082,6 +1259,71 @@ export interface components {
              */
             recordedAt: string;
         };
+        /** ConnectionIn */
+        ConnectionIn: {
+            /**
+             * Apikey
+             * @description Your API key. Never returned. Omit to keep the stored one.
+             */
+            apiKey?: string | null;
+            /** Baseurl */
+            baseUrl?: string | null;
+            /** Model */
+            model?: string | null;
+            /**
+             * Activate
+             * @description Use this provider for AI from now on.
+             * @default true
+             */
+            activate?: boolean;
+        };
+        /** ConnectionOut */
+        ConnectionOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "anthropic" | "openai" | "gemini" | "openrouter" | "groq" | "ollama" | "custom";
+            /** Providername */
+            providerName: string;
+            /**
+             * Hint
+             * @description Last four characters of your key, e.g. …wxyz.
+             */
+            hint: string | null;
+            /** Baseurl */
+            baseUrl: string | null;
+            /** Model */
+            model: string | null;
+            /** Active */
+            active: boolean;
+            /** Free */
+            free: boolean;
+            /**
+             * Verifiedat
+             * Format: date-time
+             */
+            verifiedAt: string;
+        };
+        /** ConnectionUpdate */
+        ConnectionUpdate: {
+            /** Model */
+            model?: string | null;
+            /** Active */
+            active?: boolean | null;
+        };
+        /** ConnectionsOut */
+        ConnectionsOut: {
+            /**
+             * Mode
+             * @description `user`: everyone brings their own key. `server`: a shared key may be used.
+             * @enum {string}
+             */
+            mode: "user" | "server";
+            active: components["schemas"]["ActiveAIOut"] | null;
+            /** Connections */
+            connections: components["schemas"]["ConnectionOut"][];
+        };
         /** ConsentOut */
         ConsentOut: {
             /**
@@ -1162,6 +1404,27 @@ export interface components {
             learning: components["schemas"]["LearningWidget"];
             problems: components["schemas"]["ProblemsWidget"];
         };
+        /**
+         * DayReferenceOut
+         * @description roadmap.sh link for the roadmap's subject, plus matching topic notes from the user's
+         *     own local clone (personal use only; read from this machine, never stored).
+         */
+        DayReferenceOut: {
+            /** Roadmapname */
+            roadmapName: string | null;
+            /**
+             * Roadmapurl
+             * @description https://roadmap.sh/<roadmap>, when one fits.
+             */
+            roadmapUrl: string | null;
+            /** @description Only with a local clone configured. */
+            topic: components["schemas"]["LearnTopicOut"] | null;
+            /**
+             * Localcontent
+             * @description ROADMAP_SH_CONTENT_DIR is set and found.
+             */
+            localContent: boolean;
+        };
         /** DevLoginIn */
         DevLoginIn: {
             /** Email */
@@ -1204,6 +1467,46 @@ export interface components {
             level: "basic" | "intermediate" | "advanced" | "pro";
             /** Tasks */
             tasks: components["schemas"]["DraftTask"][];
+        };
+        /** DraftJobError */
+        DraftJobError: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
+        /**
+         * DraftJobOut
+         * @description A roadmap being drafted in the background. Poll until status is done or failed.
+         */
+        DraftJobOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Subject */
+            subject: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "failed" | "cancelled";
+            /**
+             * Stage
+             * @description outline: planning one concept per day; writing: turning days into tasks.
+             * @enum {string}
+             */
+            stage: "outline" | "writing" | "done";
+            /** Daysdone */
+            daysDone: number;
+            /**
+             * Daystotal
+             * @description 0 until the outline is ready.
+             */
+            daysTotal: number;
+            draft?: components["schemas"]["RoadmapDraft"] | null;
+            error?: components["schemas"]["DraftJobError"] | null;
         };
         /** DraftRequest */
         DraftRequest: {
@@ -1763,6 +2066,27 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** LearnResourceOut */
+        LearnResourceOut: {
+            /**
+             * Kind
+             * @description official, opensource, article, video or roadmap.
+             */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** LearnTopicOut */
+        LearnTopicOut: {
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Resources */
+            resources: components["schemas"]["LearnResourceOut"][];
+        };
         /** LearningSessionIn */
         LearningSessionIn: {
             /**
@@ -1937,6 +2261,13 @@ export interface components {
             done?: boolean | null;
             /** Sortorder */
             sortOrder?: number | null;
+        };
+        /** ModelOut */
+        ModelOut: {
+            /** Id */
+            id: string;
+            /** Free */
+            free: boolean;
         };
         /** Page[EntryOut] */
         Page_EntryOut_: {
@@ -2132,6 +2463,39 @@ export interface components {
             solvedThisWeek: number;
             /** Totalsolved */
             totalSolved: number;
+        };
+        /** ProviderOut */
+        ProviderOut: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "anthropic" | "openai" | "gemini" | "openrouter" | "groq" | "ollama" | "custom";
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "anthropic" | "openai_compatible";
+            /** Needskey */
+            needsKey: boolean;
+            /**
+             * Customurl
+             * @description You can (or must) enter the endpoint URL.
+             */
+            customUrl: boolean;
+            /** Defaultbaseurl */
+            defaultBaseUrl: string | null;
+            /**
+             * Keyurl
+             * @description Where to create an API key.
+             */
+            keyUrl: string | null;
+            /** Freenote */
+            freeNote: string | null;
+            /** Defaultmodel */
+            defaultModel: string | null;
         };
         /** RoadmapDetailOut */
         RoadmapDetailOut: {
@@ -4910,6 +5274,101 @@ export interface operations {
             };
         };
     };
+    roadmaps_start_draft_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_get_draft_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    roadmaps_cancel_draft_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     roadmaps_get_roadmap: {
         parameters: {
             query?: {
@@ -5007,6 +5466,38 @@ export interface operations {
             };
         };
     };
+    roadmaps_get_day_reference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+                day: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayReferenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     roadmaps_complete_task: {
         parameters: {
             query?: {
@@ -5091,6 +5582,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AIStatusOut"];
+                };
+            };
+        };
+    };
+    ai_list_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"][];
+                };
+            };
+        };
+    };
+    ai_get_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsOut"];
+                };
+            };
+        };
+    };
+    ai_connect_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_disconnect_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_change_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_provider_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

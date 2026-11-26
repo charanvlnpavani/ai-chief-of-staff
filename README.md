@@ -40,12 +40,47 @@ Create an OAuth client ("Web application") in Google Cloud with redirect URI
 `http://localhost:3000/api/v1/auth/google/callback`, put the ID and secret in `backend/.env`, and
 add your Google address to `ALLOWED_LOGIN_EMAILS`. Only `openid email profile` is requested.
 
-### Optional: AI Chief of Staff
+### Optional: AI (Chief of Staff, roadmap drafts)
 
-Set `ANTHROPIC_API_KEY` in `backend/.env` and restart the API. The first time you open
-**Chief of Staff** it asks for consent and explains what is sent to Anthropic. Every call is
-costed in a usage ledger and blocked once the monthly budget (Settings, default $25) is reached.
-Also set a spend limit in the Claude Console.
+AI runs on **each user's own connection**, set up in **Settings → AI provider**:
+
+| Provider | Key | Notes |
+|---|---|---|
+| Claude (Anthropic) | platform.claude.com | Native SDK: prompt caching, adaptive thinking, refusal fallback |
+| ChatGPT models (OpenAI) | platform.openai.com | |
+| Google Gemini | aistudio.google.com | Free tier |
+| OpenRouter | openrouter.ai | Hundreds of models; `:free` models cost nothing |
+| Groq | console.groq.com | Free tier |
+| Ollama | none | Free, private, **offline**: models run on your computer |
+| Custom | optional | Any OpenAI-compatible URL (LM Studio, DeepSeek, Mistral, ...) |
+
+After connecting, pick a model from the provider's live list (the Chief of Staff needs one
+that supports tool calling). Keys are checked with the provider, stored encrypted (AES-256-GCM,
+bound to your account) and never shown again. Every call is recorded in a usage ledger and
+blocked once the monthly budget (Settings, default $25) is reached; free models cost $0, and
+models without a known price are counted at Claude Opus rates. Set a spend limit with your
+provider too.
+
+`AI_KEY_MODE=user` (the default) makes a personal connection mandatory and is enforced in
+production. For a single-user self-host, `AI_KEY_MODE=server` lets `ANTHROPIC_API_KEY` act as a
+fallback. Provider URLs that point at localhost or a private network (such as Ollama on the
+same machine) are allowed in development and refused in production unless
+`AI_ALLOW_PRIVATE_ENDPOINTS=true`.
+
+### Optional: "Learn more" from roadmap.sh
+
+Every roadmap shows a link to the matching roadmap on [roadmap.sh](https://roadmap.sh). For
+notes on each day's concept, clone its content repository on your own machine and point the
+backend at it:
+
+```bash
+git clone --depth 1 https://github.com/nilbuild/developer-roadmap.git ~/code/developer-roadmap
+echo "ROADMAP_SH_CONTENT_DIR=$HOME/code/developer-roadmap" >> backend/.env   # then restart the API
+```
+
+That content is licensed for **personal use only**. Personal OS reads it from your machine
+when you open a day and shows it to you. It is never stored in the database, committed to this
+repository, published, or sent to an AI provider. Do not copy it into this repository.
 
 ## Everyday commands
 

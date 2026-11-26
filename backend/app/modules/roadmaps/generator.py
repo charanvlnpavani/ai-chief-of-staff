@@ -1,86 +1,72 @@
-"""Roadmap drafts from Claude, returned in a fixed, validated shape (structured outputs).
+"""Provider adapters for roadmap drafting: one validated structured reply per call.
 
-The service depends only on `RoadmapGenerator`, so tests use a scripted fake and never
-spend money. The draft is never saved here: the user reviews it first.
+`drafting.py` decides what to ask; these classes only send one request to the user's own
+provider and return the reply parsed into the requested Pydantic schema. The service depends
+only on the `RoadmapGenerator` protocol, so tests use a scripted fake and never spend money.
+Nothing is saved here: the user reviews the draft first.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
 import anthropic
+import openai
+from pydantic import BaseModel, ValidationError
 
-from app.ai.client import FALLBACK_BETA
+from app.ai.client import ADAPTIVE_MODELS, FALLBACK_BETA, FALLBACK_MODELS, claude_features
+from app.ai.connections import Connection
+from app.ai.openai_compat import map_error
 from app.ai.pricing import Usage
 from app.core.config import Settings, get_settings
 from app.core.errors import ServiceUnavailable
-from app.modules.roadmaps.schemas import PlannedRoadmap
 
 logger = logging.getLogger("app.roadmaps.generator")
 
-SYSTEM_PROMPT = """\
-You design self-study roadmaps inside Personal OS, a private planning app.
-
-Given a subject, write a roadmap that takes a learner from basics to professional level.
-- Group the days into the levels basic, intermediate, advanced and pro, in that order.
-  Every level should have at least two days.
-- Each day has one to three concrete tasks the learner can finish and tick off that day:
-  learn a named concept, build or practise something specific, or review. Avoid vague tasks
-  such as "study more".
-- A task title says what to do in under 15 words. The detail says how, in one or two
-  sentences. Minutes is a realistic estimate; the tasks of one day should add up to about
-  the daily time the learner has.
-- Roughly every seventh day, make a review or small project day that uses earlier topics.
-- Use your own wording. Do not reproduce other roadmaps or course outlines.
-- If the subject is not something a person can learn step by step, make the roadmap about
-  the closest learnable skill and say so in the title.
-"""
-
 
 @dataclass(frozen=True, slots=True)
-class GeneratedRoadmap:
-    """`plan` is None when Claude refused or the reply was cut off; usage is still billed."""
+class AIReply[T: BaseModel]:
+    """`parsed` is None when the model refused, was cut off or broke the schema.
 
-    plan: PlannedRoadmap | None
+    Usage is billed either way, so every reply is recorded in the ledger.
+    """
+
+    parsed: T | None
     refused: bool
     model: str
     usage: Usage
     request_id: str | None
+    free: bool = False
 
 
 class RoadmapGenerator(Protocol):
-    async def generate(
-        self, *, subject: str, target_days: int, minutes_per_day: int
-    ) -> GeneratedRoadmap: ...
+    async def complete[T: BaseModel](
+        self, *, system: str, user: str, schema: type[T], max_tokens: int
+    ) -> AIReply[T]: ...
 
 
 class AnthropicRoadmapGenerator:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, api_key: str, model: str) -> None:
         self._settings = settings
-        self._client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key.get_secret_value(),
-            timeout=300.0,
-            max_retries=2,
-        )
+        self._model = model
+        self._client = anthropic.AsyncAnthropic(api_key=api_key, timeout=300.0, max_retries=2)
 
-    async def generate(
-        self, *, subject: str, target_days: int, minutes_per_day: int
-    ) -> GeneratedRoadmap:
-        user_text = (
-            f"<subject>{subject}</subject>\n"
-            f"Plan about {target_days} days with about {minutes_per_day} minutes per day."
-        )
+    async def complete[T: BaseModel](
+        self, *, system: str, user: str, schema: type[T], max_tokens: int
+    ) -> AIReply[T]:
         params: dict[str, Any] = {
-            "model": self._settings.ai_model_chat,
-            "max_tokens": 16000,
-            "system": SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": user_text}],
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": "medium"},
-            "output_format": PlannedRoadmap,
+            "model": self._model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+            "output_format": schema,
+            **claude_features(self._model),
         }
-        if self._settings.ai_refusal_fallback:
+        if self._model in ADAPTIVE_MODELS:
+            params["output_config"] = {"effort": "medium"}
+        if self._settings.ai_refusal_fallback and self._model in FALLBACK_MODELS:
             params |= {"betas": [FALLBACK_BETA], "fallbacks": "default"}
         try:
             response = await self._client.beta.messages.parse(**params)
@@ -90,7 +76,7 @@ class AnthropicRoadmapGenerator:
             ) from exc
         except anthropic.AuthenticationError as exc:
             raise ServiceUnavailable(
-                "The Anthropic API key was rejected.", code="ai_auth_failed"
+                "Anthropic rejected your API key. Update it in Settings.", code="ai_auth_failed"
             ) from exc
         except anthropic.APIStatusError as exc:
             logger.warning("anthropic_status_error", extra={"status": exc.status_code})
@@ -107,8 +93,9 @@ class AnthropicRoadmapGenerator:
         )
         refused = response.stop_reason == "refusal"
         complete = not refused and response.stop_reason != "max_tokens"
-        return GeneratedRoadmap(
-            plan=response.parsed_output if complete else None,
+        parsed = response.parsed_output if complete else None
+        return AIReply(
+            parsed=parsed if isinstance(parsed, schema) else None,
             refused=refused,
             model=response.model,
             usage=cost_usage,
@@ -116,16 +103,104 @@ class AnthropicRoadmapGenerator:
         )
 
 
-@lru_cache
-def _anthropic_generator() -> AnthropicRoadmapGenerator:
-    return AnthropicRoadmapGenerator(get_settings())
+JSON_INSTRUCTIONS = (
+    "Reply with one JSON object only, no prose and no code fences, matching this JSON "
+    "Schema:\n{schema}"
+)
 
 
-def get_roadmap_generator() -> RoadmapGenerator:
-    if not get_settings().ai_enabled:
-        raise ServiceUnavailable(
-            "Roadmaps for new subjects need ANTHROPIC_API_KEY in backend/.env. "
-            "Built-in roadmaps work without it.",
-            code="ai_not_configured",
+def parse_json[T: BaseModel](text: str, schema: type[T]) -> T | None:
+    """Pull the JSON object out of a model reply and validate it; None if it does not fit."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        return schema.model_validate_json(text[start : end + 1])
+    except ValidationError:
+        return None
+
+
+class OpenAICompatibleRoadmapGenerator:
+    """Replies from OpenAI, Gemini, OpenRouter, Groq, Ollama or a custom endpoint.
+
+    Asks for JSON matching the schema (response_format when the provider supports it, plain
+    instructions otherwise) and validates the reply before anyone sees it.
+    """
+
+    def __init__(self, *, api_key: str | None, base_url: str, model: str, free: bool) -> None:
+        self._model = model
+        self._free = free
+        # Learned on the first refusal, so a draft's later calls skip the failing attempt.
+        self._structured = True
+        self._client = openai.AsyncOpenAI(
+            api_key=api_key or "not-needed", base_url=base_url, timeout=300.0, max_retries=2
         )
-    return _anthropic_generator()
+
+    async def complete[T: BaseModel](
+        self, *, system: str, user: str, schema: type[T], max_tokens: int
+    ) -> AIReply[T]:
+        json_schema = schema.model_json_schema()
+        params: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": max_tokens,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": system
+                    + "\n\n"
+                    + JSON_INSTRUCTIONS.format(schema=json.dumps(json_schema)),
+                },
+                {"role": "user", "content": user},
+            ],
+        }
+        structured: Any = {
+            "type": "json_schema",
+            "json_schema": {"name": schema.__name__, "schema": json_schema},
+        }
+        try:
+            response = None
+            if self._structured:
+                try:
+                    response = await self._client.chat.completions.create(
+                        **params, response_format=structured
+                    )
+                except openai.BadRequestError:
+                    # Not every provider or model supports structured output; plain JSON it is.
+                    self._structured = False
+            if response is None:
+                response = await self._client.chat.completions.create(**params)
+        except openai.OpenAIError as exc:
+            error = map_error(exc)
+            raise ServiceUnavailable(str(error), code=error.code) from exc
+
+        usage = response.usage
+        cost_usage = Usage(
+            input_tokens=(usage.prompt_tokens or 0) if usage else 0,
+            output_tokens=(usage.completion_tokens or 0) if usage else 0,
+        )
+        choice = response.choices[0] if response.choices else None
+        finish = choice.finish_reason if choice else None
+        text = (choice.message.content or "") if choice else ""
+        refused = finish == "content_filter" or bool(choice and choice.message.refusal)
+        parsed = None if refused or finish == "length" else parse_json(text, schema)
+        return AIReply(
+            parsed=parsed,
+            refused=refused,
+            model=response.model or self._model,
+            usage=cost_usage,
+            request_id=getattr(response, "_request_id", None),
+            free=self._free,
+        )
+
+
+@lru_cache(maxsize=128)
+def generator_for_connection(connection: Connection) -> RoadmapGenerator:
+    """One client per user connection: drafts bill to the requesting user's own account."""
+    if connection.kind == "anthropic":
+        return AnthropicRoadmapGenerator(get_settings(), connection.api_key or "", connection.model)
+    return OpenAICompatibleRoadmapGenerator(
+        api_key=connection.api_key,
+        base_url=connection.base_url or "",
+        model=connection.model,
+        free=connection.free,
+    )
