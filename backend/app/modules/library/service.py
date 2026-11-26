@@ -331,7 +331,11 @@ async def list_items(
     limit: int = 50,
 ) -> Page[ItemSummaryOut]:
     """Items outside the trash: best match first when searching, otherwise newest first."""
-    f = filters or ItemFilters()
+    query = _items_query(user_id, filters or ItemFilters(), timezone)
+    return await _page(session, query, cursor=cursor, limit=limit)
+
+
+def _items_query(user_id: uuid.UUID, f: ItemFilters, timezone: str) -> Select[LibraryItem]:
     query = select(LibraryItem).where(
         LibraryItem.user_id == user_id, LibraryItem.deleted_at.is_(None)
     )
@@ -340,8 +344,28 @@ async def list_items(
     if q:
         query, rank = _search(query, user_id, q)
         query = query.order_by(rank.desc())
-    query = query.order_by(LibraryItem.created_at.desc(), LibraryItem.id.desc())
-    return await _page(session, query, cursor=cursor, limit=limit)
+    return query.order_by(LibraryItem.created_at.desc(), LibraryItem.id.desc())
+
+
+async def search_items(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    filters: ItemFilters,
+    *,
+    timezone: str = "UTC",
+    limit: int = 10,
+) -> list[ItemOut]:
+    """Full items (excerpt and note included) in list order. For the AI tool."""
+    items = list(await session.scalars(_items_query(user_id, filters, timezone).limit(limit)))
+    tags = await tagging.tags_for(session, [i.id for i in items])
+    return [
+        ItemOut(
+            **{n: getattr(i, n) for n in ItemOut.model_fields if n not in COMPUTED},
+            preview=_preview(i),
+            tags=tags[i.id],
+        )
+        for i in items
+    ]
 
 
 async def list_trash(
