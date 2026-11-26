@@ -15,6 +15,10 @@ TITLE_MAX = 300
 EXCERPT_MAX = 10_000
 BODY_MAX = 100_000
 PREVIEW_LENGTH = 240
+TAG_MAX = 40
+TAGS_PER_ITEM = 20
+COLLECTION_NAME_MAX = 60
+QUERY_MAX = 200
 
 # C0 controls except tab, newline and carriage return. Postgres rejects NUL in text, and
 # the others only ever arrive by accident (or to hide something from a reader).
@@ -42,6 +46,44 @@ Body = Annotated[str | None, Field(max_length=BODY_MAX), AfterValidator(_clean_t
 Url = Annotated[str | None, Field(max_length=2048)]
 
 
+def _clean_tag(value: str) -> str:
+    """ "#Python " -> "Python". Case is kept for display; matching ignores it."""
+    cleaned = _clean_line(value.lstrip().lstrip("#"))
+    if not cleaned:
+        raise ValueError("A tag cannot be empty.")
+    if len(cleaned) > TAG_MAX:
+        raise ValueError(f"Tags are at most {TAG_MAX} characters.")
+    return cleaned
+
+
+def _clean_name(value: str) -> str:
+    cleaned = _clean_line(value)
+    if not cleaned:
+        raise ValueError("A name cannot be empty.")
+    return cleaned
+
+
+TagName = Annotated[str, Field(max_length=TAG_MAX * 2), AfterValidator(_clean_tag)]
+CollectionName = Annotated[str, Field(max_length=COLLECTION_NAME_MAX), AfterValidator(_clean_name)]
+
+
+def tag_key(name: str) -> str:
+    return name.lower()
+
+
+def _unique_tags(tags: list[str] | None) -> list[str] | None:
+    """Drops repeats that differ only in case, keeping the first spelling."""
+    if tags is None:
+        return None
+    seen: dict[str, str] = {}
+    for tag in tags:
+        seen.setdefault(tag_key(tag), tag)
+    return list(seen.values())
+
+
+TagList = Annotated[list[TagName], Field(max_length=TAGS_PER_ITEM), AfterValidator(_unique_tags)]
+
+
 class ItemIn(APIModel):
     """Save something. `kind` may be left out: a URL makes a link (or a video for YouTube),
     text alone makes a note. A link's title defaults to its site; a note's to its first line."""
@@ -53,6 +95,8 @@ class ItemIn(APIModel):
     body: Body = None
     status: ItemStatus = "inbox"
     is_favorite: bool = False
+    tags: TagList = Field(default_factory=list, description="Tag names; new ones are created.")
+    collection_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _shape(self) -> Self:
@@ -80,6 +124,8 @@ class ItemUpdate(APIModel):
     body: Body = None
     status: ItemStatus | None = None
     is_favorite: bool | None = None
+    tags: TagList | None = Field(default=None, description="Replaces the item's tags.")
+    collection_id: uuid.UUID | None = Field(default=None, description="null removes it.")
 
 
 class ItemSummaryOut(APIModel):
@@ -95,6 +141,8 @@ class ItemSummaryOut(APIModel):
         description="Start of the excerpt, or of the note when there is no excerpt."
     )
     is_favorite: bool
+    tags: list[str]
+    collection_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
@@ -116,3 +164,32 @@ class CountsOut(APIModel):
     archived: int
     favorites: int
     trash: int
+
+
+class TagOut(APIModel):
+    id: uuid.UUID
+    name: str
+    item_count: int = Field(description="Saved items with this tag, not counting the trash.")
+
+
+class TagUpdate(APIModel):
+    name: TagName = Field(description="Renaming to an existing tag's name merges the two.")
+
+
+class CollectionIn(APIModel):
+    name: CollectionName
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+
+
+class CollectionUpdate(APIModel):
+    version: int = Field(ge=1)
+    name: CollectionName | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=10_000)
+
+
+class CollectionOut(APIModel):
+    id: uuid.UUID
+    name: str
+    sort_order: int
+    item_count: int = Field(description="Saved items in it, not counting the trash.")
+    version: int

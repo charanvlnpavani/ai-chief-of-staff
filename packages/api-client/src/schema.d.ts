@@ -602,7 +602,7 @@ export interface paths {
         };
         /**
          * List Items
-         * @description Saved items outside the trash, newest first.
+         * @description Saved items outside the trash: newest first, or best match first with `q`.
          */
         get: operations["library_list_items"];
         put?: never;
@@ -712,6 +712,86 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tags */
+        get: operations["library_list_tags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Tag
+         * @description Remove the tag from every item; the items stay.
+         */
+        delete: operations["library_delete_tag"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename Tag
+         * @description Rename a tag. Renaming to another tag's name merges them into that tag.
+         */
+        patch: operations["library_rename_tag"];
+        trace?: never;
+    };
+    "/api/v1/library/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Collections */
+        get: operations["library_list_collections"];
+        put?: never;
+        /** Create Collection */
+        post: operations["library_create_collection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/collections/{collection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Collection
+         * @description Delete the collection; its items stay in the library without a collection.
+         */
+        delete: operations["library_delete_collection"];
+        options?: never;
+        head?: never;
+        /** Update Collection */
+        patch: operations["library_update_collection"];
         trace?: never;
     };
     "/api/v1/professional/skills": {
@@ -1349,6 +1429,44 @@ export interface components {
              * @description Defaults to today.
              */
             localDate?: string | null;
+        };
+        /** CollectionIn */
+        CollectionIn: {
+            /** Name */
+            name: string;
+            /**
+             * Sortorder
+             * @default 0
+             */
+            sortOrder?: number;
+        };
+        /** CollectionOut */
+        CollectionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Sortorder */
+            sortOrder: number;
+            /**
+             * Itemcount
+             * @description Saved items in it, not counting the trash.
+             */
+            itemCount: number;
+            /** Version */
+            version: number;
+        };
+        /** CollectionUpdate */
+        CollectionUpdate: {
+            /** Version */
+            version: number;
+            /** Name */
+            name?: string | null;
+            /** Sortorder */
+            sortOrder?: number | null;
         };
         /** CompletionIn */
         CompletionIn: {
@@ -2229,6 +2347,13 @@ export interface components {
              * @default false
              */
             isFavorite?: boolean;
+            /**
+             * Tags
+             * @description Tag names; new ones are created.
+             */
+            tags?: string[];
+            /** Collectionid */
+            collectionId?: string | null;
         };
         /** ItemOut */
         ItemOut: {
@@ -2260,6 +2385,10 @@ export interface components {
             preview: string | null;
             /** Isfavorite */
             isFavorite: boolean;
+            /** Tags */
+            tags: string[];
+            /** Collectionid */
+            collectionId: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -2327,6 +2456,10 @@ export interface components {
             preview: string | null;
             /** Isfavorite */
             isFavorite: boolean;
+            /** Tags */
+            tags: string[];
+            /** Collectionid */
+            collectionId: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -2361,6 +2494,16 @@ export interface components {
             status?: ("inbox" | "to_read" | "reading" | "archived") | null;
             /** Isfavorite */
             isFavorite?: boolean | null;
+            /**
+             * Tags
+             * @description Replaces the item's tags.
+             */
+            tags?: string[] | null;
+            /**
+             * Collectionid
+             * @description null removes it.
+             */
+            collectionId?: string | null;
         };
         /** LearnResourceOut */
         LearnResourceOut: {
@@ -3123,6 +3266,29 @@ export interface components {
             targetLevel?: number | null;
             /** Notes */
             notes?: string | null;
+        };
+        /** TagOut */
+        TagOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Itemcount
+             * @description Saved items with this tag, not counting the trash.
+             */
+            itemCount: number;
+        };
+        /** TagUpdate */
+        TagUpdate: {
+            /**
+             * Name
+             * @description Renaming to an existing tag's name merges the two.
+             */
+            name: string;
         };
         /** TaskCompleteOut */
         TaskCompleteOut: {
@@ -4928,9 +5094,19 @@ export interface operations {
     library_list_items: {
         parameters: {
             query?: {
+                /** @description Search title, excerpt, note, link and tags. Supports "phrases", -exclude and OR. Results are ordered by relevance. */
+                q?: string | null;
                 status?: ("inbox" | "to_read" | "reading" | "archived") | null;
                 kind?: ("note" | "link" | "video" | "excerpt") | null;
                 favorite?: boolean | null;
+                /** @description Tag name. */
+                tag?: string | null;
+                /** @description Collection id. */
+                collection?: string | null;
+                /** @description Saved on or after (local day). */
+                from?: string | null;
+                /** @description Saved on or before (local day). */
+                to?: string | null;
                 /** @description Maximum items to return. */
                 limit?: number;
                 /** @description Cursor from a previous page. */
@@ -5192,6 +5368,207 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_list_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagOut"][];
+                };
+            };
+        };
+    };
+    library_delete_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_rename_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_list_collections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionOut"][];
+                };
+            };
+        };
+    };
+    library_create_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_delete_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    library_update_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionOut"];
+                };
             };
             /** @description Validation Error */
             422: {

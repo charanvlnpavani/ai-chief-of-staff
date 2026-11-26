@@ -5,20 +5,24 @@ only reachable through the trash, restore and permanent-delete paths.
 """
 
 import uuid
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, cast, exists, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import REGCONFIG
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequest, Conflict, NotFound
 from app.core.pagination import decode_cursor, next_cursor
 from app.core.schemas import Page
-from app.core.time import utc_now
+from app.core.time import local_day_start, utc_now
 from app.modules.identity import service as identity_service
-from app.modules.library import urls
-from app.modules.library.models import LibraryItem
+from app.modules.library import collections, tagging, urls
+from app.modules.library.models import LibraryItem, LibraryItemTag, Tag
 from app.modules.library.schemas import (
     PREVIEW_LENGTH,
     CountsOut,
@@ -28,6 +32,7 @@ from app.modules.library.schemas import (
     ItemStatus,
     ItemSummaryOut,
     ItemUpdate,
+    tag_key,
 )
 
 URL_KEY_INDEX = "uq_library_items_user_url_key"
@@ -73,14 +78,18 @@ def _preview(item: LibraryItem) -> str | None:
     return _shorten(" ".join(text.split()), PREVIEW_LENGTH) if text else None
 
 
-def _summary(item: LibraryItem) -> ItemSummaryOut:
-    fields = {n: getattr(item, n) for n in ItemSummaryOut.model_fields if n != "preview"}
-    return ItemSummaryOut(**fields, preview=_preview(item))
+COMPUTED = {"preview", "tags"}
 
 
-def _out(item: LibraryItem) -> ItemOut:
-    fields = {n: getattr(item, n) for n in ItemOut.model_fields if n != "preview"}
-    return ItemOut(**fields, preview=_preview(item))
+def _summary(item: LibraryItem, tags: list[str]) -> ItemSummaryOut:
+    fields = {n: getattr(item, n) for n in ItemSummaryOut.model_fields if n not in COMPUTED}
+    return ItemSummaryOut(**fields, preview=_preview(item), tags=tags)
+
+
+async def _out(session: AsyncSession, item: LibraryItem) -> ItemOut:
+    tags = (await tagging.tags_for(session, [item.id]))[item.id]
+    fields = {n: getattr(item, n) for n in ItemOut.model_fields if n not in COMPUTED}
+    return ItemOut(**fields, preview=_preview(item), tags=tags)
 
 
 async def _live_duplicate(
@@ -115,10 +124,16 @@ def _is_url_key_violation(exc: IntegrityError) -> bool:
     return getattr(diag, "constraint_name", None) == URL_KEY_INDEX
 
 
-async def _commit(session: AsyncSession, user_id: uuid.UUID, url_key: str | None) -> None:
-    """Commit, turning a lost race on the duplicate index into the same 409 as the check."""
+async def _guarded(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    url_key: str | None,
+    step: Callable[[], Awaitable[None]],
+) -> None:
+    """Flush or commit, turning a lost race on the duplicate index into the same 409 as
+    the check."""
     try:
-        await session.commit()
+        await step()
     except IntegrityError as exc:
         await session.rollback()
         if url_key is None or not _is_url_key_violation(exc):
@@ -127,6 +142,10 @@ async def _commit(session: AsyncSession, user_id: uuid.UUID, url_key: str | None
         if existing is None:
             raise
         raise _duplicate(existing) from exc
+
+
+async def _commit(session: AsyncSession, user_id: uuid.UUID, url_key: str | None) -> None:
+    await _guarded(session, user_id, url_key, session.commit)
 
 
 def _apply_link(item: LibraryItem, saved: urls.SavedUrl) -> None:
@@ -170,10 +189,14 @@ async def create_item(session: AsyncSession, user_id: uuid.UUID, data: ItemIn) -
         else:
             await _ensure_not_saved(session, user_id, saved.key)
             _apply_link(item, saved)  # the server decides link vs video
+    if data.collection_id is not None:
+        item.collection_id = (await collections.get_live(session, user_id, data.collection_id)).id
     item.title = data.title or _default_title(item)
     session.add(item)
+    await _guarded(session, user_id, item.url_key, session.flush)  # the item id for its tags
+    await tagging.set_item_tags(session, user_id, item.id, data.tags)
     await _commit(session, user_id, item.url_key)
-    return _out(item)
+    return await _out(session, item)
 
 
 def _default_title(item: LibraryItem) -> str:
@@ -185,7 +208,7 @@ def _default_title(item: LibraryItem) -> str:
 
 
 async def get_item(session: AsyncSession, user_id: uuid.UUID, item_id: uuid.UUID) -> ItemOut:
-    return _out(await _get_item(session, user_id, item_id))
+    return await _out(session, await _get_item(session, user_id, item_id))
 
 
 async def _page(
@@ -193,32 +216,106 @@ async def _page(
 ) -> Page[ItemSummaryOut]:
     offset = decode_cursor(cursor)
     rows = list(await session.scalars(query.offset(offset).limit(limit + 1)))
+    page = rows[:limit]
+    tags = await tagging.tags_for(session, [i.id for i in page])
     return Page[ItemSummaryOut](
-        items=[_summary(i) for i in rows[:limit]],
+        items=[_summary(i, tags[i.id]) for i in page],
         next_cursor=next_cursor(offset, limit, len(rows)),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class ItemFilters:
+    q: str | None = None
+    status: ItemStatus | None = None
+    kind: ItemKind | None = None
+    favorite: bool | None = None
+    tag: str | None = None
+    collection_id: uuid.UUID | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+def _like(text: str) -> str:
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _filtered(
+    query: Select[LibraryItem], user_id: uuid.UUID, f: ItemFilters, timezone: str
+) -> Select[LibraryItem]:
+    if f.status is not None:
+        query = query.where(LibraryItem.status == f.status)
+    if f.kind is not None:
+        query = query.where(LibraryItem.kind == f.kind)
+    if f.favorite is not None:
+        query = query.where(LibraryItem.is_favorite.is_(f.favorite))
+    if f.collection_id is not None:
+        query = query.where(LibraryItem.collection_id == f.collection_id)
+    if f.tag is not None:
+        query = query.where(
+            exists().where(
+                LibraryItemTag.item_id == LibraryItem.id,
+                LibraryItemTag.tag_id == Tag.id,
+                Tag.user_id == user_id,
+                Tag.name_key == tag_key(f.tag),
+            )
+        )
+    if f.date_from is not None and f.date_to is not None and f.date_from > f.date_to:
+        raise BadRequest("The start date is after the end date.", code="date_order")
+    # Days are the user's local days.
+    if f.date_from is not None:
+        query = query.where(LibraryItem.created_at >= local_day_start(timezone, f.date_from))
+    if f.date_to is not None:
+        end = local_day_start(timezone, f.date_to + timedelta(days=1))
+        query = query.where(LibraryItem.created_at < end)
+    return query
+
+
+def _search(
+    query: Select[LibraryItem], user_id: uuid.UUID, q: str
+) -> tuple[Select[LibraryItem], ColumnElement[Any]]:
+    """Full-text match on title, excerpt and note (websearch syntax: "quoted phrase",
+    -exclude, OR), plus a substring match on title, link and tag names so partial input
+    such as "githu" still finds github.com links. Full-text matches rank first."""
+    tsquery = func.websearch_to_tsquery(cast(literal("simple"), REGCONFIG), q)
+    pattern = _like(q)
+    tag_match = exists().where(
+        LibraryItemTag.item_id == LibraryItem.id,
+        LibraryItemTag.tag_id == Tag.id,
+        Tag.user_id == user_id,
+        Tag.name.ilike(pattern, escape="\\"),
+    )
+    query = query.where(
+        or_(
+            LibraryItem.search_tsv.op("@@")(tsquery),
+            LibraryItem.title.ilike(pattern, escape="\\"),
+            LibraryItem.url.ilike(pattern, escape="\\"),
+            tag_match,
+        )
+    )
+    return query, func.ts_rank_cd(LibraryItem.search_tsv, tsquery)
 
 
 async def list_items(
     session: AsyncSession,
     user_id: uuid.UUID,
+    filters: ItemFilters | None = None,
     *,
-    status: ItemStatus | None = None,
-    kind: ItemKind | None = None,
-    favorite: bool | None = None,
+    timezone: str = "UTC",
     cursor: str | None = None,
     limit: int = 50,
 ) -> Page[ItemSummaryOut]:
-    """Items outside the trash, newest first."""
+    """Items outside the trash: best match first when searching, otherwise newest first."""
+    f = filters or ItemFilters()
     query = select(LibraryItem).where(
         LibraryItem.user_id == user_id, LibraryItem.deleted_at.is_(None)
     )
-    if status is not None:
-        query = query.where(LibraryItem.status == status)
-    if kind is not None:
-        query = query.where(LibraryItem.kind == kind)
-    if favorite is not None:
-        query = query.where(LibraryItem.is_favorite.is_(favorite))
+    query = _filtered(query, user_id, f, timezone)
+    q = " ".join((f.q or "").split())
+    if q:
+        query, rank = _search(query, user_id, q)
+        query = query.order_by(rank.desc())
     query = query.order_by(LibraryItem.created_at.desc(), LibraryItem.id.desc())
     return await _page(session, query, cursor=cursor, limit=limit)
 
@@ -272,10 +369,17 @@ async def update_item(
     for field in ("excerpt", "body"):
         if field in changes:
             setattr(item, field, changes[field])
+    if "collection_id" in changes:
+        target = changes["collection_id"]
+        item.collection_id = (
+            (await collections.get_live(session, user_id, target)).id if target else None
+        )
+    if changes.get("tags") is not None:
+        await tagging.set_item_tags(session, user_id, item.id, changes["tags"])
 
     item.version += 1
     await _commit(session, user_id, item.url_key)
-    return _out(item)
+    return await _out(session, item)
 
 
 async def _change_url(session: AsyncSession, item: LibraryItem, raw: str | None) -> None:
@@ -320,7 +424,7 @@ async def restore_item(
     item.version += 1
     _audit(session, item, "library.item_restored", request)
     await _commit(session, user_id, item.url_key)
-    return _out(item)
+    return await _out(session, item)
 
 
 async def purge_item(
