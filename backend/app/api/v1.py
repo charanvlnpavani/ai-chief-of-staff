@@ -8,6 +8,7 @@ from app.modules.goals.router import router as goals_router
 from app.modules.habits.router import exceptions_router as habit_exceptions_router
 from app.modules.habits.router import router as habits_router
 from app.modules.identity.router import auth_router, users_router
+from app.modules.library.router import router as library_router
 from app.modules.productivity.router import lists_router, tasks_router
 from app.modules.professional.router import router as professional_router
 from app.modules.roadmaps.router import router as roadmaps_router
@@ -22,6 +23,7 @@ for module_router in (
     habits_router,
     habit_exceptions_router,
     goals_router,
+    library_router,
     professional_router,
     roadmaps_router,
     ai_router,
